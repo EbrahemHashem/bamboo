@@ -1,0 +1,176 @@
+{
+  "name": "Bamboo Anomaly Detector",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 */4 * * *" }
+          ]
+        }
+      },
+      "id": "cron-4h",
+      "name": "Cron — Every 4h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst d7 = new Date(now.getTime() - 7*24*60*60*1000);\nconst d1 = new Date(now.getTime() - 24*60*60*1000);\nconst iso = x => x.toISOString().split('T')[0];\nreturn [{ json: {\n  nowIso: now.toISOString(),\n  today: iso(now),\n  yesterday: iso(d1),\n  weekAgo: iso(d7),\n}}];"
+      },
+      "id": "prep-time",
+      "name": "Prep Time Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Daily KPIs", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"IS_AFTER({Date}, '\" + $('Prep Time Window').item.json.weekAgo + \"')\" }}",
+        "sort": [{ "field": "Date", "direction": "desc" }]
+      },
+      "id": "read-kpis",
+      "name": "Read Daily KPIs (7d)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 220],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Ad Variants", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"{Status} = 'Active'\" }}"
+      },
+      "id": "read-ads",
+      "name": "Read Active Ads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 340],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Email Performance", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"IS_AFTER({Date}, '\" + $('Prep Time Window').item.json.yesterday + \"')\" }}"
+      },
+      "id": "read-email",
+      "name": "Read Email Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 460],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const kpis  = $('Read Daily KPIs (7d)').all().map(i => i.json);\nconst ads   = $('Read Active Ads').all().map(i => i.json);\nconst email = $('Read Email Performance').all().map(i => i.json);\nconst nowIso = $('Prep Time Window').item.json.nowIso;\n\nconst anomalies = [];\nconst add = (engine, type, severity, desc, current, expected, action) => {\n  anomalies.push({\n    'Timestamp': nowIso,\n    'Engine': engine,\n    'Type': type,\n    'Severity': severity,\n    'Description': desc,\n    'Current Value': current,\n    'Expected Value': expected,\n    'Recommended Action': action,\n    'Resolved': false\n  });\n};\n\n// Baseline: last 7 days excluding today\nconst today = $('Prep Time Window').item.json.today;\nconst current = kpis.find(k => k.Date === today);\nconst baseline = kpis.filter(k => k.Date !== today);\nconst avg = (arr, f) => arr.length ? arr.reduce((a,x) => a + (Number(x[f]) || 0), 0) / arr.length : 0;\n\nif (current && baseline.length >= 3) {\n  // 1. CPA Spike\n  const curCpa = Number(current['Total Ad Spend']) / Math.max(1, Number(current['New Customers']));\n  const baseCpa = avg(baseline, 'Total Ad Spend') / Math.max(1, avg(baseline, 'New Customers'));\n  if (baseCpa > 0 && curCpa > baseCpa * 1.5) {\n    add('Acquisition', 'CPA Spike', curCpa > baseCpa * 2 ? 'Critical' : 'Warning',\n      `CPA gestegen naar €${curCpa.toFixed(2)} (baseline €${baseCpa.toFixed(2)}). Creative refresh of hook-variant testen.`,\n      curCpa, baseCpa,\n      'Check /pattern-detector om te zien welke ads de oorzaak zijn. Pauzeer losers boven €20 spend.'\n    );\n  }\n\n  // 2. CR Drop\n  const curCR = Number(current['Shopify Conversion Rate']) || 0;\n  const baseCR = avg(baseline, 'Shopify Conversion Rate');\n  if (baseCR > 0 && curCR < baseCR * 0.7) {\n    add('Conversion', 'CR Drop', curCR < baseCR * 0.5 ? 'Critical' : 'Warning',\n      `Shopify CR gezakt naar ${curCR.toFixed(2)}% (baseline ${baseCR.toFixed(2)}%). Onderzoek PDP/checkout friction.`,\n      curCR, baseCR,\n      'Check Shopify PDP voor hero product. Test checkout flow handmatig. Review recent design changes.'\n    );\n  }\n\n  // 3. Inventory Low\n  if (current['Inventory Status'] === 'Critical') {\n    add('Revenue', 'Inventory Low', 'Critical',\n      'Voorraad hero product onder 14 dagen runway. Nu bijbestellen om stockout te voorkomen.',\n      null, null,\n      'Plaats bestelling bij leverancier, verhoog MOQ zodat je 60+ dagen runway hebt.'\n    );\n  } else if (current['Inventory Status'] === 'Watch') {\n    add('Revenue', 'Inventory Low', 'Warning',\n      'Voorraad hero product onder 30 dagen runway. Bestelling inplannen.',\n      null, null,\n      'Zet bestelling voor komende 2 weken op planning.'\n    );\n  }\n\n  // 4. Pipeline Stall\n  const curPipe = Number(current['B2B Pipeline Value']) || 0;\n  const basePipe = avg(baseline, 'B2B Pipeline Value');\n  if (basePipe > 0 && curPipe < basePipe * 0.8) {\n    add('Revenue', 'Pipeline Stall', 'Warning',\n      `B2B pipeline waarde gezakt van €${Math.round(basePipe)} naar €${Math.round(curPipe)}. Leads verliezen stage of niet genoeg aanvoer.`,\n      curPipe, basePipe,\n      'Review B2B outreach cadans. Check of Engaged+ leads niet stil zijn gevallen.'\n    );\n  }\n\n  // 5. Email Drop\n  const curEmailShare = Number(current['Email Revenue Share']) || 0;\n  if (curEmailShare < 15 && Number(current['Total Revenue']) > 500) {\n    add('Conversion', 'Email Drop', 'Warning',\n      `Email share slechts ${curEmailShare.toFixed(1)}% van omzet. Flows onderpresteren of niet actief.`,\n      curEmailShare, 25,\n      'Check welcome flow + abandoned cart in Klaviyo. Open rate check: moet >25% zijn.'\n    );\n  }\n\n  // 6. Budget Overrun (ad spend 2x baseline)\n  const curSpend = Number(current['Total Ad Spend']) || 0;\n  const baseSpend = avg(baseline, 'Total Ad Spend');\n  if (baseSpend > 0 && curSpend > baseSpend * 2) {\n    add('Acquisition', 'Budget Overrun', 'Warning',\n      `Ad spend €${Math.round(curSpend)} — 2x gemiddelde (€${Math.round(baseSpend)}). Check of dit gepland was.`,\n      curSpend, baseSpend,\n      'Verify Meta budget caps. Check of winner scale rule niet is doorgeschoten.'\n    );\n  }\n}\n\n// 7. Email open rate\nfor (const e of email) {\n  const openRate = Number(e['Open Rate']) || 0;\n  if (openRate > 0 && openRate < 15) {\n    add('Conversion', 'Email Drop', 'Warning',\n      `Flow \"${e['Flow Name']||'onbekend'}\" open rate ${openRate.toFixed(1)}% — onder benchmark 15%.`,\n      openRate, 25,\n      'Test nieuwe subject lines. Check deliverability + domain warmup.'\n    );\n    break; // one alert is enough per run\n  }\n}\n\n// 8. Ad fatigue check — CTR drop per ad\nfor (const a of ads) {\n  const ctr = Number(a.CTR) || 0;\n  const spend = Number(a.Spend) || 0;\n  if (spend > 50 && ctr > 0 && ctr < 0.5) {\n    add('Acquisition', 'Ad Fatigue', 'Warning',\n      `Ad \"${a['Ad Name']}\" CTR ${ctr.toFixed(2)}% met €${spend} spend. Creative is op.`,\n      ctr, 1.0,\n      'Pause deze ad, test nieuwe hook uit hookbank (Voorraadrust of Comfort angle).'\n    );\n    break; // max 1 fatigue alert per run om spam te voorkomen\n  }\n}\n\nreturn anomalies.length\n  ? anomalies.map(a => ({ json: a }))\n  : [{ json: { _noAnomalies: true } }];"
+      },
+      "id": "detect",
+      "name": "Detect Anomalies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 340]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "has-anom",
+              "leftValue": "={{ $json._noAnomalies }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEqual" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-real",
+      "name": "If Anomaly Detected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 340]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Anomaly Log", "mode": "name" },
+        "options": { "typecast": true },
+        "fields": "={{ $json }}"
+      },
+      "id": "log-anom",
+      "name": "Log to Anomaly Table",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1320, 260],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $json;\nconst icon = a.Severity === 'Critical' ? '🚨' : a.Severity === 'Warning' ? '⚠️' : 'ℹ️';\nconst txt = `${icon} *Bamboo Anomaly — ${a.Severity}*\\n\\n` +\n  `*Type:* ${a.Type} (${a.Engine})\\n` +\n  `${a.Description}\\n\\n` +\n  `*Actie:* ${a['Recommended Action']}`;\nreturn [{ json: { text: txt } }];"
+      },
+      "id": "fmt-telegram",
+      "name": "Format Telegram Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 420]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "telegram-alert",
+      "name": "Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1540, 420],
+      "credentials": { "telegramApi": { "id": "telegram_creds", "name": "Bamboo Bot" } }
+    }
+  ],
+  "connections": {
+    "Cron — Every 4h": { "main": [[{ "node": "Prep Time Window", "type": "main", "index": 0 }]] },
+    "Prep Time Window": {
+      "main": [[
+        { "node": "Read Daily KPIs (7d)",   "type": "main", "index": 0 },
+        { "node": "Read Active Ads",        "type": "main", "index": 0 },
+        { "node": "Read Email Performance", "type": "main", "index": 0 }
+      ]]
+    },
+    "Read Daily KPIs (7d)":   { "main": [[{ "node": "Detect Anomalies", "type": "main", "index": 0 }]] },
+    "Read Active Ads":        { "main": [[{ "node": "Detect Anomalies", "type": "main", "index": 0 }]] },
+    "Read Email Performance": { "main": [[{ "node": "Detect Anomalies", "type": "main", "index": 0 }]] },
+    "Detect Anomalies":       { "main": [[{ "node": "If Anomaly Detected", "type": "main", "index": 0 }]] },
+    "If Anomaly Detected": {
+      "main": [
+        [
+          { "node": "Log to Anomaly Table", "type": "main", "index": 0 },
+          { "node": "Format Telegram Alert", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Format Telegram Alert": { "main": [[{ "node": "Telegram Alert", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Europe/Amsterdam" },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": ["bamboo", "engine-6", "intelligence"]
+}

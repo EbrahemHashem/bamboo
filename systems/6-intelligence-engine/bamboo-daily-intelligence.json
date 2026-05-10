@@ -1,0 +1,183 @@
+{
+  "name": "Bamboo Daily Intelligence",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "30 7 * * *" }
+          ]
+        }
+      },
+      "id": "cron-daily",
+      "name": "Cron — Daily 07:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute yesterday ISO date (NL tz), used as range anchor\nconst now = new Date();\nconst y = new Date(now.getTime() - 24*60*60*1000);\nconst iso = y.toISOString().split('T')[0];\nreturn [{ json: { targetDate: iso, todayIso: now.toISOString().split('T')[0] } }];"
+      },
+      "id": "prep-date",
+      "name": "Prep Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Ad Variants", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"IS_AFTER({Last Updated}, DATEADD(TODAY(), -1, 'days'))\" }}"
+      },
+      "id": "read-ad-variants",
+      "name": "Read Ad Variants",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 180],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Conversion Tracking", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"{Date} = '\" + $('Prep Date').item.json.targetDate + \"'\" }}"
+      },
+      "id": "read-conversion",
+      "name": "Read Conversion Tracking",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Customer Segments", "mode": "name" },
+        "returnAll": true
+      },
+      "id": "read-customers",
+      "name": "Read Customer Segments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 420],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "B2B Leads", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"OR({Stage}='Engaged', {Stage}='Proposal', {Stage}='Negotiation')\" }}"
+      },
+      "id": "read-b2b",
+      "name": "Read B2B Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 540],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Email Performance", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"{Date} = '\" + $('Prep Date').item.json.targetDate + \"'\" }}"
+      },
+      "id": "read-email",
+      "name": "Read Email Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [680, 660],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all engine data into one Daily KPI record\nconst targetDate = $('Prep Date').item.json.targetDate;\n\nconst adVariants = $('Read Ad Variants').all().map(i => i.json);\nconst conv       = $('Read Conversion Tracking').all().map(i => i.json);\nconst customers  = $('Read Customer Segments').all().map(i => i.json);\nconst b2b        = $('Read B2B Leads').all().map(i => i.json);\nconst email      = $('Read Email Performance').all().map(i => i.json);\n\n// --- Ad spend + ad-driven revenue ---\nlet adSpend = 0, winnerCount = 0, activeCampaigns = new Set();\nfor (const v of adVariants) {\n  adSpend += Number(v.Spend || 0);\n  if (v['Winner Status'] === 'Winner') winnerCount++;\n  if (v.Status === 'Active' && Array.isArray(v.Campaign)) v.Campaign.forEach(c => activeCampaigns.add(c));\n}\n\n// --- Conversion + revenue by channel ---\nlet shopRev = 0, bolRev = 0, b2bRev = 0, sessions = 0, orders = 0;\nfor (const c of conv) {\n  shopRev += Number(c['Shopify Revenue'] || 0);\n  bolRev  += Number(c['Bol Revenue']     || 0);\n  b2bRev  += Number(c['B2B Revenue']     || 0);\n  sessions += Number(c['Sessions'] || 0);\n  orders   += Number(c['Orders']   || 0);\n}\nconst totalRev = shopRev + bolRev + b2bRev;\nconst shopCR = sessions > 0 ? (orders / sessions) * 100 : null;\n\n// --- Customers ---\nlet newC = 0, repC = 0;\nfor (const k of customers) {\n  if (k['Last Order Date'] === targetDate) {\n    if ((Number(k['Order Count']) || 0) <= 1) newC++;\n    else repC++;\n  }\n}\nconst repeatRate = (newC + repC) > 0 ? (repC / (newC + repC)) * 100 : 0;\n\n// --- Email ---\nlet emailRev = 0;\nfor (const e of email) emailRev += Number(e['Attributed Revenue'] || 0);\nconst emailShare = totalRev > 0 ? (emailRev / totalRev) * 100 : 0;\n\n// --- B2B pipeline value ---\nlet pipelineValue = 0;\nfor (const l of b2b) pipelineValue += (Number(l['Estimated Monthly Value']) || 0) * 12;\nconst newB2B = b2b.filter(l => l['Added Date'] === targetDate).length;\n\n// --- Inventory status (simple: use hero product if available) ---\nlet invStatus = 'Healthy';\nconst heroDaily = orders > 0 ? orders : 10;\n// placeholder: real implementation would pull Inventory table\n\nconst payload = {\n  'Date': targetDate,\n  'Total Revenue': totalRev,\n  'Shopify Revenue': shopRev,\n  'Bol Revenue': bolRev,\n  'B2B Revenue': b2bRev,\n  'Total Ad Spend': adSpend,\n  'Shopify Conversion Rate': shopCR,\n  'New Customers': newC,\n  'Repeat Customers': repC,\n  'Email Revenue': emailRev,\n  'B2B Leads Added': newB2B,\n  'B2B Pipeline Value': pipelineValue,\n  'Inventory Status': invStatus,\n  'Active Campaigns': activeCampaigns.size,\n  'Winner Ads Count': winnerCount\n};\n\n// Summary variables for Telegram\nconst roas = adSpend > 0 ? totalRev / adSpend : null;\nconst cpa  = newC > 0 ? adSpend / newC : null;\n\nreturn [{ json: { payload, targetDate, summary: { totalRev, roas, newC, repC, cpa, emailShare, pipelineValue, winnerCount } } }];"
+      },
+      "id": "aggregate",
+      "name": "Aggregate KPIs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "upsert",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Daily KPIs", "mode": "name" },
+        "matchingColumns": ["Date"],
+        "options": { "typecast": true },
+        "fields": "={{ $json.payload }}"
+      },
+      "id": "upsert-kpis",
+      "name": "Upsert Daily KPIs",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1120, 400],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build 5-line Dutch Telegram summary\nconst s = $('Aggregate KPIs').item.json.summary;\nconst d = $('Aggregate KPIs').item.json.targetDate;\nconst fmtEur = n => '€' + Math.round(n || 0).toLocaleString('nl-NL');\nconst fmtNum = (n, d=2) => n == null ? '—' : Number(n).toFixed(d);\n\n// Pick one hot insight\nlet insight = '';\nif (s.winnerCount >= 3) insight = `${s.winnerCount} winner ads draaien — goed moment om budget te schalen`;\nelse if (s.roas && s.roas < 2) insight = `ROAS onder 2.0 — losers pauzeren, creative refresh overwegen`;\nelse if (s.emailShare < 15) insight = `Email share slechts ${fmtNum(s.emailShare,1)}% — flows kunnen veel meer opbrengen`;\nelse if (s.pipelineValue > 50000) insight = `B2B pipeline ${fmtEur(s.pipelineValue)} jaarwaarde — follow-ups prioriteren`;\nelse insight = `Omzetmix stabiel, geen rode vlaggen vandaag`;\n\n// Pick one action\nlet action = '';\nif (s.roas && s.roas < 1.5) action = 'Check /pattern-detector → welke ads zijn de boosdoeners?';\nelse if (s.newC === 0) action = 'Geen nieuwe klanten gisteren — acquisition funnel checken';\nelse if (s.cpa && s.cpa > 15) action = `CPA €${fmtNum(s.cpa,2)} — test goedkopere hook-angle`;\nelse action = 'Geen urgente actie nodig — blijf monitoren';\n\nconst msg = `🌱 *Bamboo Daily Brief* — ${d}\\n\\n` +\n  `💰 Omzet: ${fmtEur(s.totalRev)}  ·  ROAS: ${fmtNum(s.roas)}\\n` +\n  `👥 Klanten: ${s.newC} nieuw, ${s.repC} repeat  ·  CPA: ${s.cpa ? fmtEur(s.cpa) : '—'}\\n` +\n  `🔥 Insight: ${insight}\\n` +\n  `🎯 Actie: ${action}`;\n\nreturn [{ json: { text: msg } }];"
+      },
+      "id": "build-msg",
+      "name": "Build Telegram Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "telegram-send",
+      "name": "Telegram — Send to Nathan",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1560, 400],
+      "credentials": { "telegramApi": { "id": "telegram_creds", "name": "Bamboo Bot" } }
+    }
+  ],
+  "connections": {
+    "Cron — Daily 07:30": { "main": [[{ "node": "Prep Date", "type": "main", "index": 0 }]] },
+    "Prep Date": {
+      "main": [[
+        { "node": "Read Ad Variants",        "type": "main", "index": 0 },
+        { "node": "Read Conversion Tracking","type": "main", "index": 0 },
+        { "node": "Read Customer Segments",  "type": "main", "index": 0 },
+        { "node": "Read B2B Leads",          "type": "main", "index": 0 },
+        { "node": "Read Email Performance",  "type": "main", "index": 0 }
+      ]]
+    },
+    "Read Ad Variants":         { "main": [[{ "node": "Aggregate KPIs", "type": "main", "index": 0 }]] },
+    "Read Conversion Tracking": { "main": [[{ "node": "Aggregate KPIs", "type": "main", "index": 0 }]] },
+    "Read Customer Segments":   { "main": [[{ "node": "Aggregate KPIs", "type": "main", "index": 0 }]] },
+    "Read B2B Leads":           { "main": [[{ "node": "Aggregate KPIs", "type": "main", "index": 0 }]] },
+    "Read Email Performance":   { "main": [[{ "node": "Aggregate KPIs", "type": "main", "index": 0 }]] },
+    "Aggregate KPIs":           { "main": [[{ "node": "Upsert Daily KPIs", "type": "main", "index": 0 }]] },
+    "Upsert Daily KPIs":        { "main": [[{ "node": "Build Telegram Message", "type": "main", "index": 0 }]] },
+    "Build Telegram Message":   { "main": [[{ "node": "Telegram — Send to Nathan", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Europe/Amsterdam" },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": ["bamboo", "engine-6", "intelligence"]
+}

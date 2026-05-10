@@ -1,0 +1,9 @@
+{
+  "records": [
+    {"id": "recR01", "fields": {"competitor_name": "The Good Roll", "ad_id": "ad_001", "angle": "waarde", "scrape_date": "2026-04-14", "ad_text": "Bamboe toiletpapier voor thuis"}},
+    {"id": "recR02", "fields": {"competitor_name": "The Good Roll", "ad_id": "ad_002", "angle": "duurzaam", "scrape_date": "2026-04-15", "ad_text": "Boomvrij papier"}},
+    {"id": "recR03", "fields": {"competitor_name": "Bamboi", "ad_id": "ad_003", "angle": "comfort", "scrape_date": "2026-04-15", "ad_text": "Zacht 3 laags"}},
+    {"id": "recR04", "fields": {"competitor_name": "The Cheeky Panda", "ad_id": "ad_004", "angle": "voorraadrust", "scrape_date": "2026-04-16", "ad_text": "Altijd op voorraad"}},
+    {"id": "recR05", "fields": {"competitor_name": "Who Gives A Crap", "ad_id": "ad_005", "angle": "waarde", "scrape_date": "2026-04-17", "ad_text": "48 rollen voor 30 euro"}}
+  ]
+}

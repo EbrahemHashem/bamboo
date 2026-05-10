@@ -1,0 +1,58 @@
+{
+  "client": "Bamboo Disposables BV",
+  "root_folder": "Bamboo",
+  "description": "Google Drive folder structuur voor content productie. Wordt automatisch aangemaakt door /content-machine bij eerste run.",
+  "structure": {
+    "Bamboo/": {
+      "01-content-production/": {
+        "description": "Alle nieuwe content staging — wordt verplaatst naar approved/ na Nathan's goedkeuring",
+        "subfolders": {
+          "YYYY-MM/": {
+            "description": "Per maand georganiseerd, auto-created",
+            "subfolders": {
+              "statics/": "4K PNG statics gegenereerd via nano banana",
+              "carousels/": "Multi-slide Instagram carousels",
+              "video-scripts/": "Scripts voor UGC, talking head, static-to-video",
+              "captions/": "Los bewaarde captions voor handmatig gebruik",
+              "prompts/": "Archief van visual prompts (voor iteratie)"
+            }
+          }
+        }
+      },
+      "02-approved/": {
+        "description": "Nathan verplaatst hier handmatig wat hij wil posten. Airtable tracking volgt.",
+        "subfolders": {
+          "instagram/": "IG feed posts",
+          "instagram-stories/": "IG stories",
+          "meta-ads/": "Goedgekeurd voor Meta Ads Manager",
+          "bol-listings/": "Content voor Bol.com productpagina's",
+          "email/": "Email newsletter content"
+        }
+      },
+      "03-posted/": {
+        "description": "Archief na posten. Tracked in Airtable voor performance analyse.",
+        "subfolders": {
+          "YYYY-MM/": "Per maand archief"
+        }
+      },
+      "04-brand-assets/": {
+        "description": "Permanente brand assets — logo, kleuren, fonts, product photos",
+        "subfolders": {
+          "logos/": "",
+          "product-photos/": "Product shots per kernlijn",
+          "colors/": "Brand kleuren palette",
+          "fonts/": "",
+          "templates/": "Herbruikbare templates voor carousels, stories"
+        }
+      },
+      "05-references/": {
+        "description": "Company Bible PDF, concurrent winners, inspiration",
+        "subfolders": {
+          "company-bible/": "",
+          "competitor-winners/": "Top ads van 4 concurrenten (auto-gesynced vanuit Systeem 1)",
+          "inspiration/": "Manual upload — wat Nathan mooi vindt"
+        }
+      }
+    }
+  }
+}

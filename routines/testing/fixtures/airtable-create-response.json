@@ -1,0 +1,9 @@
+{
+  "records": [
+    {
+      "id": "recMockCreated01",
+      "createdTime": "2026-04-17T10:00:00.000Z",
+      "fields": {"status": "created"}
+    }
+  ]
+}

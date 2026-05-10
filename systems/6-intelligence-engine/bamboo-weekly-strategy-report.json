@@ -1,0 +1,195 @@
+{
+  "name": "Bamboo Weekly Strategy Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 10 * * 1" }
+          ]
+        }
+      },
+      "id": "cron-weekly",
+      "name": "Cron — Monday 10:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build week window: last 7 days (Mon-Sun previous week)\nconst today = new Date();\nconst d7 = new Date(today.getTime() - 7*24*60*60*1000);\nconst d14 = new Date(today.getTime() - 14*24*60*60*1000);\n\nconst isoDate = x => x.toISOString().split('T')[0];\n\n// ISO week label\nfunction getISOWeek(d) {\n  const target = new Date(d.valueOf());\n  const dayNr = (d.getUTCDay() + 6) % 7;\n  target.setUTCDate(target.getUTCDate() - dayNr + 3);\n  const firstThursday = target.valueOf();\n  target.setUTCMonth(0, 1);\n  if (target.getUTCDay() !== 4) target.setUTCMonth(0, 1 + ((4 - target.getUTCDay()) + 7) % 7);\n  const week = 1 + Math.ceil((firstThursday - target) / 604800000);\n  return d.getUTCFullYear() + '-W' + String(week).padStart(2, '0');\n}\n\nreturn [{ json: {\n  weekLabel: getISOWeek(today),\n  weekStartIso: isoDate(d7),\n  prevWeekStartIso: isoDate(d14),\n  todayIso: isoDate(today),\n}}];"
+      },
+      "id": "prep-week",
+      "name": "Prep Week Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Daily KPIs", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"IS_AFTER({Date}, '\" + $('Prep Week Window').item.json.prevWeekStartIso + \"')\" }}",
+        "sort": [{ "field": "Date", "direction": "asc" }]
+      },
+      "id": "read-kpis",
+      "name": "Read Daily KPIs (last 14d)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 200],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Anomaly Log", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"IS_AFTER({Timestamp}, '\" + $('Prep Week Window').item.json.weekStartIso + \"')\" }}"
+      },
+      "id": "read-anomalies",
+      "name": "Read Anomalies (last 7d)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 320],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Ad Variants", "mode": "name" },
+        "returnAll": true,
+        "filterByFormula": "={{ \"IS_AFTER({Launch Date}, '\" + $('Prep Week Window').item.json.weekStartIso + \"')\" }}"
+      },
+      "id": "read-ads",
+      "name": "Read Ad Variants (last 7d)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 440],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "list",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "B2B Leads", "mode": "name" },
+        "returnAll": true
+      },
+      "id": "read-b2b",
+      "name": "Read B2B Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [660, 560],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const kpis  = $('Read Daily KPIs (last 14d)').all().map(i => i.json);\nconst anom  = $('Read Anomalies (last 7d)').all().map(i => i.json);\nconst ads   = $('Read Ad Variants (last 7d)').all().map(i => i.json);\nconst b2b   = $('Read B2B Leads').all().map(i => i.json);\nconst win   = $('Prep Week Window').item.json;\n\nconst weekStart = win.weekStartIso;\nconst prev = win.prevWeekStartIso;\n\nconst thisWeek = kpis.filter(k => k.Date >= weekStart);\nconst lastWeek = kpis.filter(k => k.Date >= prev && k.Date < weekStart);\n\nconst sum = (arr, f) => arr.reduce((a,x) => a + (Number(x[f]) || 0), 0);\nconst avg = (arr, f) => arr.length ? sum(arr, f) / arr.length : 0;\n\nconst revThis = sum(thisWeek, 'Total Revenue');\nconst revLast = sum(lastWeek, 'Total Revenue');\nconst revChange = revLast > 0 ? ((revThis - revLast) / revLast) * 100 : 0;\n\nconst roasThis = avg(thisWeek, 'Overall ROAS');\nconst roasLast = avg(lastWeek, 'Overall ROAS');\nconst roasTrend = roasThis > roasLast * 1.05 ? 'Rising' : (roasThis < roasLast * 0.95 ? 'Declining' : 'Stable');\n\nconst adSpendThis = sum(thisWeek, 'Total Ad Spend');\nconst newCThis    = sum(thisWeek, 'New Customers');\nconst repCThis    = sum(thisWeek, 'Repeat Customers');\n\n// Pipeline snapshot\nconst pipelineVal = b2b.filter(l => ['Engaged','Proposal','Negotiation'].includes(l.Stage))\n  .reduce((a,l) => a + (Number(l['Estimated Monthly Value']) || 0) * 12, 0);\n\n// Top & bottom ads\nads.sort((a,b) => (Number(b.Revenue)||0) - (Number(a.Revenue)||0));\nconst topAds = ads.slice(0, 5).map(a => ({ name: a['Ad Name'], rev: a.Revenue, roas: a.ROAS, cpa: a.CPA }));\nconst badAds = ads.filter(a => (Number(a.ROAS)||0) < 1.5 && (Number(a.Spend)||0) > 20).slice(0, 5);\n\n// Anomalies summary\nconst critical = anom.filter(a => a.Severity === 'Critical').length;\nconst warnings = anom.filter(a => a.Severity === 'Warning').length;\n\n// Build prompt for Claude\nconst prompt = `Je bent Bamboo's strategisch analist. Schrijf een wekelijks rapport in het Nederlands. Tone: nuchter, slim, niet activistisch. Spreek in \"je/jij\". Lead altijd met gebruikswaarde. Geen corporate taal.\n\nDATA van deze week (${weekStart} tot vandaag):\n- Omzet deze week: €${Math.round(revThis)}\n- Omzet vorige week: €${Math.round(revLast)}\n- Verandering: ${revChange.toFixed(1)}%\n- Gemiddelde ROAS deze week: ${roasThis.toFixed(2)}\n- ROAS trend: ${roasTrend}\n- Ad spend deze week: €${Math.round(adSpendThis)}\n- Nieuwe klanten: ${newCThis}\n- Repeat klanten: ${repCThis}\n- B2B pipeline jaarwaarde: €${Math.round(pipelineVal)}\n- Anomalies deze week: ${critical} kritiek, ${warnings} waarschuwing\n\nTop 5 ads:\n${topAds.map(a => `- ${a.name}: €${a.rev} rev, ROAS ${a.roas}, CPA €${a.cpa}`).join('\\n')}\n\n${badAds.length ? 'Slechtste ads (ROAS<1.5):\\n' + badAds.map(a => `- ${a['Ad Name']}: ROAS ${a.ROAS}, €${a.Spend} spend`).join('\\n') : 'Geen slechte ads boven spend threshold.'}\n\nOUTPUT in strict JSON:\n{\n  \"summary\": \"markdown samenvatting 3-5 zinnen\",\n  \"top_wins\": \"bulletlist markdown, 3-5 bullets\",\n  \"top_concerns\": \"bulletlist markdown, 2-4 bullets\",\n  \"recommendations\": \"genummerde lijst markdown, 3 concrete aanbevelingen\",\n  \"action_items\": \"checkboxlist markdown - [ ] format, 3-6 items\"\n}\n\nBelangrijk: noem Bamboo hero product (Ongebleekt 3 laags 48 rollen) als relevant. Geen morele taal. Focus op gebruikswaarde, minder verspilling, boomvrij. Output ALLEEN de JSON, geen uitleg.`;\n\nreturn [{ json: { prompt, weekLabel: win.weekLabel, weekStart, revThis, revLast, revChange, roasTrend }}];"
+      },
+      "id": "build-prompt",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-5\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    { \"role\": \"user\", \"content\": {{ JSON.stringify($json.prompt) }} }\n  ]\n}",
+        "options": {}
+      },
+      "id": "claude-api",
+      "name": "Call Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.content?.[0]?.text || '{}';\nlet parsed = {};\ntry {\n  // Strip fences if present\n  const cleaned = raw.replace(/^```(?:json)?/g,'').replace(/```$/g,'').trim();\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  parsed = { summary: raw, top_wins: '', top_concerns: '', recommendations: '', action_items: '' };\n}\n\nconst meta = $('Build Claude Prompt').item.json;\n\nconst payload = {\n  'Week': meta.weekLabel,\n  'Date': meta.weekStart,\n  'Summary': parsed.summary || '',\n  'Top Wins': parsed.top_wins || '',\n  'Top Concerns': parsed.top_concerns || '',\n  'Recommendations': parsed.recommendations || '',\n  'Revenue This Week': meta.revThis,\n  'Revenue Last Week': meta.revLast,\n  'ROAS Trend': meta.roasTrend,\n  'Action Items': parsed.action_items || ''\n};\n\n// Build markdown email body\nconst mdEmail = `# Bamboo Strategie Rapport — ${meta.weekLabel}\\n\\n` +\n  `**Omzet deze week:** €${Math.round(meta.revThis)} (${meta.revChange > 0 ? '+' : ''}${meta.revChange.toFixed(1)}%)\\n` +\n  `**ROAS trend:** ${meta.roasTrend}\\n\\n` +\n  `## Overzicht\\n${parsed.summary || ''}\\n\\n` +\n  `## Top Wins\\n${parsed.top_wins || ''}\\n\\n` +\n  `## Top Concerns\\n${parsed.top_concerns || ''}\\n\\n` +\n  `## Aanbevelingen\\n${parsed.recommendations || ''}\\n\\n` +\n  `## Actielijst\\n${parsed.action_items || ''}\\n`;\n\nreturn [{ json: { payload, mdEmail, weekLabel: meta.weekLabel } }];"
+      },
+      "id": "parse-claude",
+      "name": "Parse Claude Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 380]
+    },
+    {
+      "parameters": {
+        "resource": "record",
+        "operation": "create",
+        "base": { "__rl": true, "value": "={{ $env.AIRTABLE_BASE_ID }}", "mode": "id" },
+        "table": { "__rl": true, "value": "Strategy Reports", "mode": "name" },
+        "options": { "typecast": true },
+        "fields": "={{ $json.payload }}"
+      },
+      "id": "save-report",
+      "name": "Save to Strategy Reports",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [1540, 300],
+      "credentials": { "airtableTokenApi": { "id": "airtable_creds", "name": "Airtable PAT" } }
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.SENDER_EMAIL }}",
+        "toEmail": "={{ $env.NATHAN_EMAIL }}",
+        "subject": "=Bamboo Strategie Rapport — {{ $('Parse Claude Response').item.json.weekLabel }}",
+        "text": "={{ $('Parse Claude Response').item.json.mdEmail }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Email Nathan",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1540, 460],
+      "credentials": { "smtp": { "id": "smtp_creds", "name": "Bamboo SMTP" } }
+    }
+  ],
+  "connections": {
+    "Cron — Monday 10:00": { "main": [[{ "node": "Prep Week Window", "type": "main", "index": 0 }]] },
+    "Prep Week Window": {
+      "main": [[
+        { "node": "Read Daily KPIs (last 14d)", "type": "main", "index": 0 },
+        { "node": "Read Anomalies (last 7d)",   "type": "main", "index": 0 },
+        { "node": "Read Ad Variants (last 7d)", "type": "main", "index": 0 },
+        { "node": "Read B2B Leads",             "type": "main", "index": 0 }
+      ]]
+    },
+    "Read Daily KPIs (last 14d)": { "main": [[{ "node": "Build Claude Prompt", "type": "main", "index": 0 }]] },
+    "Read Anomalies (last 7d)":   { "main": [[{ "node": "Build Claude Prompt", "type": "main", "index": 0 }]] },
+    "Read Ad Variants (last 7d)": { "main": [[{ "node": "Build Claude Prompt", "type": "main", "index": 0 }]] },
+    "Read B2B Leads":             { "main": [[{ "node": "Build Claude Prompt", "type": "main", "index": 0 }]] },
+    "Build Claude Prompt":        { "main": [[{ "node": "Call Claude API", "type": "main", "index": 0 }]] },
+    "Call Claude API":            { "main": [[{ "node": "Parse Claude Response", "type": "main", "index": 0 }]] },
+    "Parse Claude Response": {
+      "main": [[
+        { "node": "Save to Strategy Reports", "type": "main", "index": 0 },
+        { "node": "Email Nathan", "type": "main", "index": 0 }
+      ]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Europe/Amsterdam" },
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": ["bamboo", "engine-6", "intelligence"]
+}

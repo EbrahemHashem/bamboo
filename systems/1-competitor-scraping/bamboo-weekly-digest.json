@@ -1,0 +1,93 @@
+{
+  "name": "bamboo-weekly-digest",
+  "description": "Elke maandag 09:00 NL — haalt afgelopen week's competitor data uit Airtable, genereert AI samenvatting, mailt naar Nathan",
+  "client": "Bamboo Disposables BV",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 9 * * 1",
+    "timezone": "Europe/Amsterdam"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "name": "Maandag 09:00 NL",
+      "config": {
+        "cronExpression": "0 9 * * 1",
+        "timezone": "Europe/Amsterdam"
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Haal afgelopen week ads op",
+      "config": {
+        "operation": "list",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Ad Research",
+        "filterByFormula": "DATETIME_DIFF(TODAY(), {Scrape Date}, 'days') <= 7"
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Anthropic Claude — Genereer Digest",
+      "config": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "headers": {
+          "x-api-key": "={{ $env.ANTHROPIC_API_KEY }}",
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json"
+        },
+        "body": {
+          "model": "claude-opus-4-6",
+          "max_tokens": 4096,
+          "system": "Je bent Bamboo Disposables BV's competitive intelligence analyst. Nederlands, nuchter, slim-niet-activist. Genereer een wekelijkse digest op basis van de 4 concurrenten (The Good Roll, Bamboi, Cheeky Panda, Who Gives A Crap). Lead met winners (ads >7 dagen live, hoge impressions), dan nieuwe launches, dan format/angle trends, tot slot Bamboo action items. Gebruik Bamboo brand voice regels: waarde per gebruik, geen activist toon.",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hier is de gescrapete competitor data van de afgelopen week ({{ $json.totalAds }} ads van {{ $json.uniqueCompetitors }} concurrenten): {{ JSON.stringify($json.ads) }}. Genereer de Bamboo Competitor Weekly Digest in markdown, klaar om als email naar Nathan te sturen."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.emailSend",
+      "name": "Mail Digest naar Nathan",
+      "config": {
+        "fromEmail": "={{ $env.SENDER_EMAIL }}",
+        "toEmail": "={{ $env.NATHAN_EMAIL }}",
+        "subject": "Bamboo Competitor Digest — Week {{ $now.format('W') }}",
+        "html": "={{ $json.content[0].text }}"
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Log Digest in Airtable",
+      "config": {
+        "operation": "create",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Weekly Digest",
+        "fields": ["Week", "Date", "Content", "Ad Count", "Winners Count"]
+      }
+    }
+  ],
+  "connections": [
+    [1, 2],
+    [2, 3],
+    [3, 4],
+    [3, 5]
+  ],
+  "env_vars_needed": [
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "ANTHROPIC_API_KEY",
+    "SENDER_EMAIL",
+    "NATHAN_EMAIL"
+  ],
+  "notes": "Draait 1x per week, maandag 09:00. Gebruikt Claude Opus voor Bamboo-getrouwe digest generatie. Mailt naar Nathan + logt in Airtable Weekly Digest table voor archief."
+}

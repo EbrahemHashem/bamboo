@@ -1,0 +1,7 @@
+{
+  "records": [
+    {"id": "recEP01", "fields": {"flow_name": "Welcome Series", "open_rate_pct": 32.5, "click_rate_pct": 4.8, "revenue_7d": 450.00, "health": "OK"}},
+    {"id": "recEP02", "fields": {"flow_name": "Reorder 48r", "open_rate_pct": 28.1, "click_rate_pct": 6.2, "revenue_7d": 820.00, "health": "OK"}},
+    {"id": "recEP03", "fields": {"flow_name": "Winback 90d", "open_rate_pct": 18.5, "click_rate_pct": 2.1, "revenue_7d": 120.00, "health": "Critical — low open rate"}}
+  ]
+}

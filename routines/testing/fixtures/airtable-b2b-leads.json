@@ -1,0 +1,31 @@
+{
+  "records": [
+    {
+      "id": "recB2B01",
+      "fields": {
+        "company_name": "Boutique Hotel Noord",
+        "contact_email": "inkoop@boutiquenoord.nl",
+        "Stage": "Engaged",
+        "estimated_value": 1200
+      }
+    },
+    {
+      "id": "recB2B02",
+      "fields": {
+        "company_name": "Praktijk Den Haag",
+        "contact_email": "office@praktijkdh.nl",
+        "Stage": "Qualified",
+        "estimated_value": 600
+      }
+    },
+    {
+      "id": "recB2B03",
+      "fields": {
+        "company_name": "Basisschool De Klim",
+        "contact_email": "admin@klimschool.nl",
+        "Stage": "Contacted",
+        "estimated_value": 900
+      }
+    }
+  ]
+}

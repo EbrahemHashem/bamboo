@@ -1,0 +1,90 @@
+{
+  "_comment": "Bamboo Disposables BV — Claude Code settings. Dit bestand komt terecht in ~/.claude/settings.local.json. Vul keys in via ~/Bamboo/.env of direct hier.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Grep",
+      "Glob",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "model": "claude-opus-4-6",
+  "mcpServers": {
+    "airtable": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "airtable-mcp-server"],
+      "env": {
+        "AIRTABLE_API_KEY": "${AIRTABLE_API_KEY}",
+        "AIRTABLE_BASE_ID": "${AIRTABLE_BASE_ID}"
+      }
+    },
+    "apify": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@apify/actors-mcp-server"],
+      "env": {
+        "APIFY_TOKEN": "${APIFY_API_TOKEN}"
+      }
+    },
+    "meta-ads": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/Users/nathan/mcp-servers/meta-ads-mcp/server.py"],
+      "env": {
+        "META_AD_ACCOUNT_ID": "${META_AD_ACCOUNT_ID}",
+        "META_ACCESS_TOKEN": "${META_ACCESS_TOKEN}"
+      }
+    },
+    "nano-banana": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@google/nano-banana-mcp"],
+      "env": {
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+      }
+    },
+    "google-drive": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gdrive"],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "${GOOGLE_DRIVE_CREDENTIALS_JSON}"
+      }
+    },
+    "n8n": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "n8n-mcp-server"],
+      "env": {
+        "N8N_HOST": "${N8N_HOST}",
+        "N8N_API_KEY": "${N8N_API_KEY}"
+      }
+    },
+    "shopify": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/Users/nathan/mcp-servers/shopify/server.py"],
+      "env": {
+        "SHOPIFY_ACCESS_TOKEN": "${SHOPIFY_ACCESS_TOKEN}",
+        "SHOPIFY_STORE_URL": "${SHOPIFY_STORE_URL}"
+      }
+    },
+    "klaviyo": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/Users/nathan/mcp-servers/klaviyo/server.py"],
+      "env": {
+        "KLAVIYO_API_KEY": "${KLAVIYO_API_KEY}"
+      }
+    }
+  },
+  "env": {
+    "BAMBOO_CLIENT_DIR": "/Users/nathan/Bamboo",
+    "BAMBOO_DEFAULT_LANG": "nl"
+  }
+}

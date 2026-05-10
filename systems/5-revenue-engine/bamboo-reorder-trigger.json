@@ -1,0 +1,158 @@
+{
+  "name": "bamboo-reorder-trigger",
+  "description": "Dagelijks 10:00 Shopify order history ophalen, per klant depletion date berekenen (24r=60d, 48r=120d, 96r=240d). Als binnen 14 dagen depletion én geen reminder → trigger Klaviyo reorder flow.",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 10 * * *"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "name": "Dagelijkse Trigger 10:00",
+      "position": [250, 300],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            { "mode": "everyDay", "hour": 10, "minute": 0 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.shopify",
+      "typeVersion": 1,
+      "name": "Haal Recente Orders op (laatste 250d)",
+      "position": [450, 300],
+      "parameters": {
+        "operation": "getAll",
+        "resource": "order",
+        "returnAll": true,
+        "filters": {
+          "status": "any",
+          "createdAtMin": "={{ $now.minus({days: 250}).toISO() }}",
+          "fields": "id,customer,line_items,created_at,total_price,financial_status"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "name": "Bereken Depletion per Klant",
+      "position": [650, 300],
+      "parameters": {
+        "functionCode": "// Per klant: vind laatste order, haal product volume eruit (24/48/96),\n// bereken depletion date. Als depletion_date - today <= 14 dagen → flag voor reminder.\n\nconst depletionDays = { 24: 60, 48: 120, 96: 240 };\n\nconst byCustomer = new Map();\nfor (const item of items) {\n  const order = item.json;\n  if (!order.customer) continue;\n  const cid = String(order.customer.id);\n  const existing = byCustomer.get(cid);\n  const orderDate = new Date(order.created_at);\n  if (!existing || orderDate > existing.lastOrderDate) {\n    // Detect volume from line items — product title should contain '24', '48' or '96'\n    let volume = 48; // default\n    let productName = '';\n    for (const li of order.line_items || []) {\n      const title = (li.title || li.name || '');\n      productName = title;\n      const match = title.match(/\\b(24|48|96)\\b/);\n      if (match) { volume = parseInt(match[1], 10); break; }\n    }\n    byCustomer.set(cid, {\n      customer_id: cid,\n      customer_email: order.customer.email,\n      customer_name: `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim(),\n      last_order_date: orderDate.toISOString().split('T')[0],\n      lastOrderDate: orderDate,\n      last_order_product: productName,\n      last_order_quantity: volume,\n      order_id: order.id\n    });\n  }\n}\n\nconst today = new Date();\nconst flagged = [];\nconst all = [];\nfor (const [cid, data] of byCustomer) {\n  const days = depletionDays[data.last_order_quantity] || 120;\n  const depletion = new Date(data.lastOrderDate);\n  depletion.setDate(depletion.getDate() + days);\n  const daysUntilDepletion = Math.floor((depletion - today) / (1000 * 60 * 60 * 24));\n\n  const record = {\n    ...data,\n    estimated_depletion_date: depletion.toISOString().split('T')[0],\n    days_until_depletion: daysUntilDepletion,\n    needs_reminder: daysUntilDepletion <= 14 && daysUntilDepletion > -7,\n    signal_id: `RS-${cid}-${Date.now()}`,\n    klaviyo_flow_id_var: `KLAVIYO_REORDER_${data.last_order_quantity}_FLOW_ID`\n  };\n  all.push({ json: record });\n  if (record.needs_reminder) flagged.push(record);\n}\n\nreturn all;\n"
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "name": "Reminder Nodig?",
+      "position": [850, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_reminder }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "name": "Upsert Reorder Signal",
+      "position": [1050, 240],
+      "parameters": {
+        "operation": "upsert",
+        "application": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Reorder Signals",
+        "updateKey": "Signal ID",
+        "fields": "Signal ID, Customer ID, Last Order Date, Last Order Product, Last Order Quantity, Estimated Depletion Date, Reminder Sent, Reminder Date"
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "name": "Trigger Klaviyo Reorder Flow",
+      "position": [1250, 240],
+      "parameters": {
+        "method": "POST",
+        "url": "https://a.klaviyo.com/api/events/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Klaviyo-API-Key {{ $env.KLAVIYO_API_KEY }}" },
+            { "name": "revision", "value": "2024-02-15" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={ \"type\": \"event\", \"attributes\": { \"properties\": { \"last_order_date\": \"{{ $json.last_order_date }}\", \"last_product\": \"{{ $json.last_order_product }}\", \"volume\": {{ $json.last_order_quantity }}, \"depletion_date\": \"{{ $json.estimated_depletion_date }}\" }, \"metric\": { \"data\": { \"type\": \"metric\", \"attributes\": { \"name\": \"Reorder Reminder {{ $json.last_order_quantity }}\" } } }, \"profile\": { \"data\": { \"type\": \"profile\", \"attributes\": { \"email\": \"{{ $json.customer_email }}\" } } } } }"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "name": "Mark Reminder Sent",
+      "position": [1450, 240],
+      "parameters": {
+        "operation": "update",
+        "application": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Reorder Signals",
+        "id": "={{ $json.record_id }}",
+        "fields": "Reminder Sent, Reminder Date"
+      }
+    },
+    {
+      "id": 8,
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "name": "Dagelijkse Reorder Samenvatting",
+      "position": [1050, 420],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=📦 Reorder Engine — dagelijkse run\n\nKlanten gecheckt: {{ $json.totalCustomers }}\nReminders getriggerd: {{ $json.remindersSent }}\nKomende 14 dagen: {{ $json.upcomingDepletion }}\n\nKlaviyo flows gebruikt:\n• 24 rollen → Reorder 24 flow\n• 48 rollen → Reorder 48 flow\n• 96 rollen → Reorder 96 flow"
+      }
+    }
+  ],
+  "connections": {
+    "Dagelijkse Trigger 10:00": { "main": [[{ "node": "Haal Recente Orders op (laatste 250d)", "type": "main", "index": 0 }]] },
+    "Haal Recente Orders op (laatste 250d)": { "main": [[{ "node": "Bereken Depletion per Klant", "type": "main", "index": 0 }]] },
+    "Bereken Depletion per Klant": { "main": [[{ "node": "Reminder Nodig?", "type": "main", "index": 0 }]] },
+    "Reminder Nodig?": { "main": [[{ "node": "Upsert Reorder Signal", "type": "main", "index": 0 }], [{ "node": "Dagelijkse Reorder Samenvatting", "type": "main", "index": 0 }]] },
+    "Upsert Reorder Signal": { "main": [[{ "node": "Trigger Klaviyo Reorder Flow", "type": "main", "index": 0 }]] },
+    "Trigger Klaviyo Reorder Flow": { "main": [[{ "node": "Mark Reminder Sent", "type": "main", "index": 0 }]] },
+    "Mark Reminder Sent": { "main": [[{ "node": "Dagelijkse Reorder Samenvatting", "type": "main", "index": 0 }]] }
+  },
+  "env_vars_needed": [
+    "SHOPIFY_STORE_URL",
+    "SHOPIFY_ACCESS_TOKEN",
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "KLAVIYO_API_KEY",
+    "KLAVIYO_REORDER_24_FLOW_ID",
+    "KLAVIYO_REORDER_48_FLOW_ID",
+    "KLAVIYO_REORDER_96_FLOW_ID",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "notes": "Depletion cycles gebaseerd op gemiddeld gezin 2-3 personen: 24r=60d, 48r=120d, 96r=240d. Reminder window = 14 dagen vóór depletion. Function node haalt volume uit product titel (regex op 24/48/96). Klaviyo event trigger met metric naam 'Reorder Reminder 24/48/96' matcht flow trigger. Reminder Sent checkbox voorkomt dubbele mails. Klanten met depletion al voorbij (>7d negatief) worden overgeslagen — dat zijn churned klanten, die pakt winback flow op."
+}

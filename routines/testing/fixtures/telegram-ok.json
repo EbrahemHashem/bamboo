@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "result": {
+    "message_id": 42,
+    "chat": {"id": -1009876543210, "title": "Bamboo Ops"},
+    "date": 1744876800,
+    "text": "Mock Bamboo message"
+  }
+}

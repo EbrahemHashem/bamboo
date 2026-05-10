@@ -1,0 +1,157 @@
+{
+  "name": "bamboo-retention-flow-monitor",
+  "description": "Dagelijks 08:00 Klaviyo flow health check — open rate, click rate, revenue attribution. Flag degraderende flows via Telegram.",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 8 * * *"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "name": "Dagelijkse Trigger 08:00",
+      "position": [250, 300],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 8,
+              "minute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "name": "Haal Klaviyo Flows op",
+      "position": [450, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://a.klaviyo.com/api/flows/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Klaviyo-API-Key {{ $env.KLAVIYO_API_KEY }}" },
+            { "name": "revision", "value": "2024-02-15" },
+            { "name": "accept", "value": "application/json" }
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "name": "Haal Flow Metrics 7d op",
+      "position": [650, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://a.klaviyo.com/api/metric-aggregates/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Klaviyo-API-Key {{ $env.KLAVIYO_API_KEY }}" },
+            { "name": "revision", "value": "2024-02-15" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={ \"type\": \"metric-aggregate\", \"attributes\": { \"measurements\": [\"count\", \"sum_value\", \"unique\"], \"interval\": \"day\", \"filter\": [\"greater-or-equal(datetime,{{ $now.minus({days: 7}).toISO() }})\", \"less-than(datetime,{{ $now.toISO() }})\"], \"by\": [\"$flow_id\"] } }"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "name": "Bereken Flow Health",
+      "position": [850, 300],
+      "parameters": {
+        "functionCode": "// Voor elke flow: bereken open_rate, click_rate, revenue_7d, unsubscribe_rate.\n// Vergelijk met vorige 7 dagen. Flag als:\n//   - open_rate < 20%\n//   - daling > 30% vs vorige week op open OF click OF revenue\n// Health: Good / Needs Attention / Critical\n\nconst flows = items[0].json.data || [];\nconst flagged = [];\nconst results = [];\n\nfor (const flow of flows) {\n  const openRate = flow.open_rate || 0;\n  const clickRate = flow.click_rate || 0;\n  const revenue = flow.revenue_7d || 0;\n  const prevOpenRate = flow.prev_open_rate || openRate;\n  const prevRevenue = flow.prev_revenue_7d || revenue;\n  const unsubRate = flow.unsubscribe_rate || 0;\n\n  const openDelta = prevOpenRate > 0 ? ((openRate - prevOpenRate) / prevOpenRate) * 100 : 0;\n  const revDelta = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : 0;\n\n  let health = 'Good';\n  let reason = '';\n\n  if (openRate < 0.20 || unsubRate > 0.01 || openDelta < -30 || revDelta < -30) {\n    health = 'Critical';\n    reason = openRate < 0.20 ? `Open rate ${(openRate*100).toFixed(1)}% onder 20%` : (openDelta < -30 ? `Open rate -${Math.abs(openDelta).toFixed(0)}% vs vorige week` : `Revenue -${Math.abs(revDelta).toFixed(0)}% vs vorige week`);\n    flagged.push({ ...flow, health, reason });\n  } else if (openRate < 0.25 || clickRate < 0.02 || openDelta < -15) {\n    health = 'Needs Attention';\n    reason = `Open ${(openRate*100).toFixed(1)}% / Click ${(clickRate*100).toFixed(1)}%`;\n  }\n\n  results.push({\n    json: {\n      flow_name: flow.name,\n      flow_id: flow.id,\n      type: flow.trigger_type || 'Unknown',\n      status: flow.status,\n      sends: flow.sends || 0,\n      open_rate: openRate,\n      click_rate: clickRate,\n      revenue_attributed: revenue,\n      unsubscribe_rate: unsubRate,\n      last_updated: new Date().toISOString(),\n      health,\n      reason\n    }\n  });\n}\n\nreturn [{ json: { results, flagged, flaggedCount: flagged.length, totalFlows: results.length } }];\n"
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "name": "Upsert Email Performance",
+      "position": [1050, 300],
+      "parameters": {
+        "operation": "upsert",
+        "application": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Email Performance",
+        "updateKey": "Flow Name",
+        "fields": "Flow Name, Type, Status, Sends, Open Rate, Click Rate, Revenue Attributed, Unsubscribe Rate, Last Updated, Health"
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "name": "Flags Aanwezig?",
+      "position": [1250, 300],
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.flaggedCount }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "name": "Telegram Alert naar Nathan",
+      "position": [1450, 240],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=⚠️ Klaviyo Flow Health Alert\n\n{{ $json.flaggedCount }} flow(s) hebben aandacht nodig:\n\n{{ $json.flagged.map(f => `• ${f.flow_name}\\n  ${f.reason}\\n  Health: ${f.health}`).join('\\n\\n') }}\n\nTotaal flows gemonitord: {{ $json.totalFlows }}\n\nCheck dashboard: Airtable → Email Performance"
+      }
+    },
+    {
+      "id": 8,
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "name": "Telegram OK Samenvatting",
+      "position": [1450, 360],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=✅ Klaviyo Flow Check — alles gezond\n\n{{ $json.totalFlows }} flows gecheckt. Geen alerts."
+      }
+    }
+  ],
+  "connections": {
+    "Dagelijkse Trigger 08:00": { "main": [[{ "node": "Haal Klaviyo Flows op", "type": "main", "index": 0 }]] },
+    "Haal Klaviyo Flows op": { "main": [[{ "node": "Haal Flow Metrics 7d op", "type": "main", "index": 0 }]] },
+    "Haal Flow Metrics 7d op": { "main": [[{ "node": "Bereken Flow Health", "type": "main", "index": 0 }]] },
+    "Bereken Flow Health": { "main": [[{ "node": "Upsert Email Performance", "type": "main", "index": 0 }]] },
+    "Upsert Email Performance": { "main": [[{ "node": "Flags Aanwezig?", "type": "main", "index": 0 }]] },
+    "Flags Aanwezig?": { "main": [[{ "node": "Telegram Alert naar Nathan", "type": "main", "index": 0 }], [{ "node": "Telegram OK Samenvatting", "type": "main", "index": 0 }]] }
+  },
+  "env_vars_needed": [
+    "KLAVIYO_API_KEY",
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "notes": "Draait dagelijks 08:00 Europe/Amsterdam. Vergelijkt Klaviyo flow metrics laatste 7 dagen met vorige 7 dagen. Critical threshold: open <20% OR daling >30%. Writes naar Email Performance tabel (Airtable). Alleen bij Critical/Needs Attention krijgt Nathan Telegram alert — anders korte OK bericht."
+}

@@ -1,0 +1,40 @@
+{
+  "orders": [
+    {
+      "id": 5000000001,
+      "email": "customer1@example.com",
+      "created_at": "2026-04-16T14:00:00Z",
+      "total_price": "45.00",
+      "financial_status": "paid",
+      "customer": {"email": "customer1@example.com"},
+      "line_items": [{"title": "Ongebleekt 3 laags — 48 rollen", "quantity": 1}],
+      "landing_site": "/products/ongebleekt-48",
+      "source_name": "TOF_Ongebleekt_NL",
+      "note_attributes": [{"name": "utm_campaign", "value": "TOF_Ongebleekt_NL"}]
+    },
+    {
+      "id": 5000000002,
+      "email": "customer2@example.com",
+      "created_at": "2026-04-16T10:00:00Z",
+      "total_price": "85.00",
+      "financial_status": "paid",
+      "customer": {"email": "customer2@example.com"},
+      "line_items": [{"title": "Bamboo bundle — 96 rollen", "quantity": 1}],
+      "landing_site": "/products/96r-bundle",
+      "source_name": "Retarget_Loyal_Q2",
+      "note_attributes": [{"name": "utm_campaign", "value": "Retarget_Loyal_Q2"}]
+    },
+    {
+      "id": 5000000003,
+      "email": "customer3@example.com",
+      "created_at": "2026-02-10T09:00:00Z",
+      "total_price": "28.00",
+      "financial_status": "paid",
+      "customer": {"email": "customer3@example.com"},
+      "line_items": [{"title": "Ongebleekt — 24 rollen", "quantity": 1}],
+      "landing_site": "/",
+      "source_name": "organic",
+      "note_attributes": []
+    }
+  ]
+}

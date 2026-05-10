@@ -1,0 +1,133 @@
+{
+  "name": "bamboo-ab-test-evaluator",
+  "description": "Dagelijks 22:00 alle draaiende A/B tests evalueren, significantie checken (>100 sessies per variant EN >10% lift), automatisch winnaar declareren, Nathan pingen per winnende test",
+  "client": "Bamboo Disposables BV",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 22 * * *",
+    "timezone": "Europe/Amsterdam"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "name": "Dagelijks 22:00",
+      "config": {
+        "cronExpression": "0 22 * * *",
+        "timezone": "Europe/Amsterdam"
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Haal Running AB Tests",
+      "config": {
+        "operation": "list",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "AB Tests",
+        "filterByFormula": "{Status} = 'Running'",
+        "fields": ["Test ID", "Test Name", "Page/Element", "Product", "Start Date", "Variant A Sessions", "Variant A Conversions", "Variant B Sessions", "Variant B Conversions"]
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Pull Shopify conversion data per test URL",
+      "config": {
+        "method": "GET",
+        "url": "https://{{ $env.SHOPIFY_STORE_URL }}/admin/api/2024-10/orders.json",
+        "qs": {
+          "status": "any",
+          "created_at_min": "={{ $json['Start Date'] }}",
+          "limit": 250
+        },
+        "headers": {
+          "X-Shopify-Access-Token": "={{ $env.SHOPIFY_ACCESS_TOKEN }}"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.function",
+      "name": "Check significantie + declareer winner",
+      "config": {
+        "functionCode": "// Voor elke draaiende test:\n//   - aA = Variant A sessions, cA = Variant A conversions\n//   - aB = Variant B sessions, cB = Variant B conversions\n//   - CR_A = cA / aA, CR_B = cB / aB\n//   - lift = (CR_B - CR_A) / CR_A * 100 (of andersom)\n//   - significant = (aA >= 100 AND aB >= 100) AND abs(lift) >= 10\n// Return array met { test_id, winner, lift, significant, reason }\n\nconst results = [];\nfor (const item of items) {\n  const test = item.json.fields;\n  const testId = test['Test ID'];\n  const aA = parseInt(test['Variant A Sessions'] || 0);\n  const cA = parseInt(test['Variant A Conversions'] || 0);\n  const aB = parseInt(test['Variant B Sessions'] || 0);\n  const cB = parseInt(test['Variant B Conversions'] || 0);\n\n  const CR_A = aA > 0 ? cA / aA : 0;\n  const CR_B = aB > 0 ? cB / aB : 0;\n\n  let winner = 'Inconclusive';\n  let lift = 0;\n  let significant = false;\n\n  if (aA >= 100 && aB >= 100) {\n    if (CR_A > CR_B) {\n      lift = CR_B > 0 ? ((CR_A - CR_B) / CR_B) * 100 : 100;\n      if (lift >= 10) { winner = 'A'; significant = true; }\n    } else if (CR_B > CR_A) {\n      lift = CR_A > 0 ? ((CR_B - CR_A) / CR_A) * 100 : 100;\n      if (lift >= 10) { winner = 'B'; significant = true; }\n    }\n  }\n\n  results.push({\n    json: {\n      test_id: testId,\n      test_name: test['Test Name'],\n      product: test['Product'],\n      winner,\n      lift: Math.round(lift * 10) / 10,\n      significant,\n      CR_A: Math.round(CR_A * 10000) / 100,\n      CR_B: Math.round(CR_B * 10000) / 100,\n      sessions_A: aA,\n      sessions_B: aB,\n      reason: significant ? `Variant ${winner} wint met ${lift.toFixed(1)}% lift` : 'Nog niet significant — meer data nodig'\n    }\n  });\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.if",
+      "name": "Is significant?",
+      "config": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.significant }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Update AB Test → Winner Declared",
+      "config": {
+        "operation": "update",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "AB Tests",
+        "matchField": "Test ID",
+        "matchValue": "={{ $json.test_id }}",
+        "fields": {
+          "Status": "Winner Declared",
+          "Winner": "={{ $json.winner }}",
+          "Lift (%)": "={{ $json.lift }}",
+          "End Date": "={{ $now.toISODate() }}",
+          "Notes": "Auto-declared door bamboo-ab-test-evaluator: {{ $json.reason }}"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.telegram",
+      "name": "Ping Nathan — winner",
+      "config": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🏆 *A/B Test Winner*\n\nTest: `{{ $json.test_name }}`\nProduct: {{ $json.product }}\nWinnaar: *Variant {{ $json.winner }}*\nLift: {{ $json.lift }}%\n\nCR A: {{ $json.CR_A }}%  (sessies: {{ $json.sessions_A }})\nCR B: {{ $json.CR_B }}%  (sessies: {{ $json.sessions_B }})\n\n_Airtable AB Tests gemarkeerd als Winner Declared. Page Variant staat klaar om live te rollen._",
+        "parseMode": "Markdown"
+      }
+    }
+  ],
+  "connections": [
+    [1, 2],
+    [2, 3],
+    [2, 4],
+    [3, 4],
+    [4, 5],
+    [5, 6],
+    [6, 7]
+  ],
+  "staticData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "versionId": "1.0.0",
+  "env_vars_needed": [
+    "SHOPIFY_ACCESS_TOKEN",
+    "SHOPIFY_STORE_URL",
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "safety_rules": [
+    "Minimum sample size: 100 sessies per variant — anders inconclusief laten",
+    "Minimum lift: 10% — onder die drempel geen winner declareren",
+    "Auto-winner gaat ALLEEN naar Status = Winner Declared — nooit direct live applyen op Shopify",
+    "Nathan moet handmatig winner → production flow draaien (via /ab-test-manager 'apply winner')"
+  ]
+}

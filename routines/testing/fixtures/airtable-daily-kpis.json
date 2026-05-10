@@ -1,0 +1,11 @@
+{
+  "records": [
+    {"id": "recK01", "fields": {"Date": "2026-04-10", "Ad_Spend": 150, "Ad_Revenue": 480, "Total_Revenue": 580, "Email_Revenue": 100, "CPA": 18.75, "CR": 0.028, "ROAS": 3.2, "Pipeline_Value": 3200, "Conversions": 8}},
+    {"id": "recK02", "fields": {"Date": "2026-04-11", "Ad_Spend": 162, "Ad_Revenue": 510, "Total_Revenue": 625, "Email_Revenue": 115, "CPA": 20.25, "CR": 0.031, "ROAS": 3.15, "Pipeline_Value": 3100, "Conversions": 8}},
+    {"id": "recK03", "fields": {"Date": "2026-04-12", "Ad_Spend": 140, "Ad_Revenue": 450, "Total_Revenue": 555, "Email_Revenue": 105, "CPA": 17.5, "CR": 0.029, "ROAS": 3.21, "Pipeline_Value": 3300, "Conversions": 8}},
+    {"id": "recK04", "fields": {"Date": "2026-04-13", "Ad_Spend": 175, "Ad_Revenue": 530, "Total_Revenue": 640, "Email_Revenue": 110, "CPA": 21.88, "CR": 0.026, "ROAS": 3.03, "Pipeline_Value": 3400, "Conversions": 8}},
+    {"id": "recK05", "fields": {"Date": "2026-04-14", "Ad_Spend": 155, "Ad_Revenue": 495, "Total_Revenue": 600, "Email_Revenue": 105, "CPA": 19.38, "CR": 0.028, "ROAS": 3.19, "Pipeline_Value": 3200, "Conversions": 8}},
+    {"id": "recK06", "fields": {"Date": "2026-04-15", "Ad_Spend": 148, "Ad_Revenue": 475, "Total_Revenue": 580, "Email_Revenue": 105, "CPA": 18.5, "CR": 0.029, "ROAS": 3.21, "Pipeline_Value": 3250, "Conversions": 8}},
+    {"id": "recK07", "fields": {"Date": "2026-04-16", "Ad_Spend": 160, "Ad_Revenue": 500, "Total_Revenue": 610, "Email_Revenue": 110, "CPA": 20.0, "CR": 0.029, "ROAS": 3.13, "Pipeline_Value": 3300, "Conversions": 8}}
+  ]
+}

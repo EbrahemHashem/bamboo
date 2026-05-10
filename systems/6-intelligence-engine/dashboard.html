@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<!--
+  Bamboo Intelligence Dashboard
+  ==============================
+  Single-file live dashboard voor Bamboo Disposables BV.
+
+  GEBRUIK:
+    1. Open dit bestand in een moderne browser (Chrome/Safari/Firefox).
+    2. Eerste keer: klik "Verbind met Airtable" en vul je Airtable API key
+       (Personal Access Token) + Base ID in. Wordt in localStorage opgeslagen.
+    3. Dashboard haalt live data op uit de Airtable base "Bamboo Ad Research"
+       (tables: Daily KPIs, Anomaly Log, Ad Variants).
+    4. Refresh-knop rechtsboven voor verse data.
+
+  RESET CREDS: open browser console → `localStorage.clear()` → refresh pagina.
+
+  Alle data is read-only. Geen externe dependencies behalve Inter font van Google.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bamboo Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brown: #8B7355;
+    --cream: #F5F1E8;
+    --text: #1A1A1A;
+    --green: #4A7C3C;
+    --red: #D9534F;
+    --yellow: #F0AD4E;
+    --border: #E5DED0;
+    --muted: #6B6258;
+    --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: 'Inter', -apple-system, sans-serif; background: var(--cream); color: var(--text); font-size: 14px; line-height: 1.5; }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 32px 40px 80px; }
+
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 2px solid var(--border); }
+  header h1 { font-size: 28px; font-weight: 700; color: var(--brown); letter-spacing: -0.5px; }
+  header h1 span { color: var(--text); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .date-label { color: var(--muted); font-size: 13px; }
+  button { background: var(--brown); color: var(--white); border: none; padding: 10px 18px; border-radius: 8px; font-family: inherit; font-weight: 500; cursor: pointer; transition: opacity 0.15s; font-size: 13px; }
+  button:hover { opacity: 0.88; }
+  button.secondary { background: var(--white); color: var(--text); border: 1px solid var(--border); }
+
+  section { margin-bottom: 28px; }
+  h2 { font-size: 16px; font-weight: 600; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .grid { display: grid; gap: 16px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 1000px) { .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { .grid-4, .grid-3 { grid-template-columns: 1fr; } }
+
+  .card { background: var(--white); border-radius: 12px; padding: 20px 22px; border: 1px solid var(--border); }
+  .card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; font-weight: 500; }
+  .card .value { font-size: 26px; font-weight: 700; color: var(--text); }
+  .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .card .value.good { color: var(--green); }
+  .card .value.warn { color: var(--yellow); }
+  .card .value.bad  { color: var(--red); }
+
+  .funnel { background: var(--white); border-radius: 12px; padding: 24px; border: 1px solid var(--border); }
+  .funnel-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+  .funnel-row:last-child { margin-bottom: 0; }
+  .funnel-label { width: 140px; font-size: 13px; color: var(--text); font-weight: 500; }
+  .funnel-bar { flex: 1; height: 28px; background: var(--cream); border-radius: 6px; overflow: hidden; position: relative; }
+  .funnel-fill { height: 100%; background: var(--brown); border-radius: 6px; display: flex; align-items: center; padding: 0 10px; color: var(--white); font-size: 12px; font-weight: 600; }
+  .funnel-val { width: 120px; text-align: right; font-size: 13px; font-weight: 600; }
+
+  .anomalies { background: var(--white); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+  .anomaly-row { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; gap: 14px; align-items: flex-start; }
+  .anomaly-row:last-child { border-bottom: none; }
+  .anomaly-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .anomaly-dot.critical { background: var(--red); }
+  .anomaly-dot.warning  { background: var(--yellow); }
+  .anomaly-dot.info     { background: var(--muted); }
+  .anomaly-body { flex: 1; }
+  .anomaly-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+  .anomaly-desc { font-size: 12px; color: var(--muted); }
+  .anomaly-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  table { width: 100%; background: var(--white); border-radius: 12px; border: 1px solid var(--border); border-collapse: separate; border-spacing: 0; overflow: hidden; }
+  th { background: var(--cream); text-align: left; padding: 12px 16px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+
+  .empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  /* Setup modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(26,26,26,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+  .modal { background: var(--white); border-radius: 12px; padding: 32px; max-width: 480px; width: 100%; margin: 20px; }
+  .modal h3 { margin-bottom: 16px; color: var(--brown); }
+  .modal p { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+  .modal label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 6px; margin-top: 14px; }
+  .modal input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 13px; }
+  .modal-actions { margin-top: 24px; display: flex; gap: 10px; justify-content: flex-end; }
+
+  .loading { color: var(--muted); font-style: italic; }
+  .error { background: #fde8e8; color: var(--red); padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Bamboo <span>Intelligence</span></h1>
+  <div class="header-right">
+    <span class="date-label" id="date-label">—</span>
+    <button class="secondary" onclick="resetCreds()">Instellingen</button>
+    <button onclick="loadAll()">Vernieuwen</button>
+  </div>
+</header>
+
+<div id="error-box"></div>
+
+<!-- Row 1: 4 hero cards -->
+<section>
+  <h2>Vandaag</h2>
+  <div class="grid grid-4">
+    <div class="card"><div class="label">Omzet</div><div class="value" id="kpi-revenue">—</div><div class="sub" id="kpi-revenue-sub"></div></div>
+    <div class="card"><div class="label">ROAS</div><div class="value" id="kpi-roas">—</div><div class="sub" id="kpi-roas-sub"></div></div>
+    <div class="card"><div class="label">Orders</div><div class="value" id="kpi-orders">—</div><div class="sub" id="kpi-orders-sub"></div></div>
+    <div class="card"><div class="label">Actieve Campagnes</div><div class="value" id="kpi-campaigns">—</div><div class="sub" id="kpi-campaigns-sub"></div></div>
+  </div>
+</section>
+
+<!-- Row 2: 3 secondary cards -->
+<section>
+  <h2>Klant & Pipeline</h2>
+  <div class="grid grid-3">
+    <div class="card"><div class="label">Shopify Conversion Rate</div><div class="value" id="kpi-cr">—</div><div class="sub">target 2.5-4%</div></div>
+    <div class="card"><div class="label">Repeat Rate</div><div class="value" id="kpi-repeat">—</div><div class="sub">target &gt;25%</div></div>
+    <div class="card"><div class="label">B2B Pipeline Value</div><div class="value" id="kpi-pipeline">—</div><div class="sub">jaarwaarde Engaged+</div></div>
+  </div>
+</section>
+
+<!-- Row 3: Funnel -->
+<section>
+  <h2>Conversion Funnel — vandaag</h2>
+  <div class="funnel" id="funnel">
+    <div class="empty">Laden...</div>
+  </div>
+</section>
+
+<!-- Row 4: Anomalies -->
+<section>
+  <h2>Afwijkingen — laatste 7 dagen</h2>
+  <div class="anomalies" id="anomalies">
+    <div class="empty">Laden...</div>
+  </div>
+</section>
+
+<!-- Row 5: Top campaigns -->
+<section>
+  <h2>Top Campagnes — laatste 7 dagen</h2>
+  <div id="campaigns-wrap">
+    <div class="empty">Laden...</div>
+  </div>
+</section>
+
+</div>
+
+<!-- Setup modal -->
+<div class="modal-bg" id="setup-modal" style="display:none;">
+  <div class="modal">
+    <h3>Verbind met Airtable</h3>
+    <p>Vul je Airtable Personal Access Token en Base ID in. Deze worden lokaal in je browser opgeslagen (localStorage) en nergens anders naartoe gestuurd.</p>
+    <label>Airtable API Key (PAT)</label>
+    <input id="input-key" type="password" placeholder="pat_xxxxxxxxxxxx">
+    <label>Base ID</label>
+    <input id="input-base" type="text" placeholder="appXXXXXXXXXXXXXX">
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeSetup()">Annuleer</button>
+      <button onclick="saveCreds()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Bamboo Intelligence Dashboard — JS
+   ============================================================ */
+
+const LS_KEY  = 'bamboo_airtable_key';
+const LS_BASE = 'bamboo_airtable_base';
+
+const TABLE_DAILY_KPIS   = 'Daily KPIs';
+const TABLE_ANOMALY_LOG  = 'Anomaly Log';
+const TABLE_AD_VARIANTS  = 'Ad Variants';
+const TABLE_CONVERSION   = 'Conversion Tracking';
+
+function getCreds() {
+  return {
+    key:  localStorage.getItem(LS_KEY),
+    base: localStorage.getItem(LS_BASE),
+  };
+}
+
+function showSetup() { document.getElementById('setup-modal').style.display = 'flex'; }
+function closeSetup() { document.getElementById('setup-modal').style.display = 'none'; }
+
+function saveCreds() {
+  const k = document.getElementById('input-key').value.trim();
+  const b = document.getElementById('input-base').value.trim();
+  if (!k || !b) { alert('Beide velden invullen'); return; }
+  localStorage.setItem(LS_KEY, k);
+  localStorage.setItem(LS_BASE, b);
+  closeSetup();
+  loadAll();
+}
+
+function resetCreds() {
+  if (!confirm('Airtable credentials wissen en opnieuw instellen?')) return;
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_BASE);
+  showSetup();
+}
+
+function showError(msg) {
+  document.getElementById('error-box').innerHTML = '<div class="error">' + msg + '</div>';
+}
+function clearError() { document.getElementById('error-box').innerHTML = ''; }
+
+function fmtEur(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return '€' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toFixed(1) + '%';
+}
+function fmtNum(n, d=2) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toFixed(d);
+}
+
+async function fetchTable(table, params = {}) {
+  const { key, base } = getCreds();
+  if (!key || !base) throw new Error('Geen credentials');
+  const url = new URL('https://api.airtable.com/v0/' + base + '/' + encodeURIComponent(table));
+  for (const [k, v] of Object.entries(params)) {
+    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
+    else url.searchParams.append(k, v);
+  }
+  const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + key } });
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error('Airtable fout (' + r.status + '): ' + txt);
+  }
+  const data = await r.json();
+  return data.records || [];
+}
+
+/* ---------- Status color classifiers ---------- */
+
+function roasClass(v) {
+  if (v === null || isNaN(v)) return '';
+  if (v < 1.5) return 'bad';
+  if (v < 2.0) return 'warn';
+  return 'good';
+}
+function crClass(v) {
+  if (v === null || isNaN(v)) return '';
+  if (v < 1.5) return 'bad';
+  if (v < 2.5) return 'warn';
+  return 'good';
+}
+function repeatClass(v) {
+  if (v === null || isNaN(v)) return '';
+  if (v < 15) return 'bad';
+  if (v < 25) return 'warn';
+  return 'good';
+}
+
+/* ---------- Loaders ---------- */
+
+async function loadDailyKPIs() {
+  const records = await fetchTable(TABLE_DAILY_KPIS, {
+    'sort[0][field]': 'Date',
+    'sort[0][direction]': 'desc',
+    'maxRecords': 1,
+  });
+  if (!records.length) {
+    document.getElementById('kpi-revenue').textContent = '—';
+    return null;
+  }
+  const f = records[0].fields;
+
+  const rev   = f['Total Revenue']         ?? 0;
+  const roas  = f['Overall ROAS']          ?? null;
+  const newC  = f['New Customers']         ?? 0;
+  const repC  = f['Repeat Customers']      ?? 0;
+  const cr    = f['Shopify Conversion Rate'] ?? null;
+  const rr    = f['Repeat Rate']           ?? null;
+  const pipe  = f['B2B Pipeline Value']    ?? 0;
+  const camps = f['Active Campaigns']      ?? 0;
+  const wins  = f['Winner Ads Count']      ?? 0;
+  const adsp  = f['Total Ad Spend']        ?? 0;
+
+  document.getElementById('kpi-revenue').textContent       = fmtEur(rev);
+  document.getElementById('kpi-revenue-sub').textContent   = 'Ad spend ' + fmtEur(adsp);
+
+  const roasEl = document.getElementById('kpi-roas');
+  roasEl.textContent = roas !== null ? fmtNum(roas) : '—';
+  roasEl.className = 'value ' + roasClass(roas);
+
+  document.getElementById('kpi-orders').textContent      = (newC + repC);
+  document.getElementById('kpi-orders-sub').textContent  = newC + ' nieuw · ' + repC + ' repeat';
+
+  document.getElementById('kpi-campaigns').textContent   = camps;
+  document.getElementById('kpi-campaigns-sub').textContent = wins + ' winners live';
+
+  const crEl = document.getElementById('kpi-cr');
+  crEl.textContent = cr !== null ? fmtPct(cr) : '—';
+  crEl.className = 'value ' + crClass(cr);
+
+  const rrEl = document.getElementById('kpi-repeat');
+  rrEl.textContent = rr !== null ? fmtPct(rr) : '—';
+  rrEl.className = 'value ' + repeatClass(rr);
+
+  document.getElementById('kpi-pipeline').textContent = fmtEur(pipe);
+
+  document.getElementById('date-label').textContent = 'Data van ' + (f['Date'] || '—');
+
+  return f;
+}
+
+async function loadFunnel(kpiFields) {
+  // Simple version: derive from Daily KPIs (orders + hypothetical upstream).
+  // If Conversion Tracking table exists, prefer that. Fallback: show orders + CR-implied sessions.
+  const container = document.getElementById('funnel');
+  try {
+    const convRecs = await fetchTable(TABLE_CONVERSION, {
+      'sort[0][field]': 'Date',
+      'sort[0][direction]': 'desc',
+      'maxRecords': 1,
+    }).catch(() => []);
+
+    let sessions = 0, atc = 0, checkout = 0, orders = 0;
+
+    if (convRecs.length) {
+      const c = convRecs[0].fields;
+      sessions = c['Sessions']     ?? 0;
+      atc      = c['Add to Cart']  ?? 0;
+      checkout = c['Checkout']     ?? 0;
+      orders   = c['Orders']       ?? 0;
+    } else if (kpiFields) {
+      const cr = kpiFields['Shopify Conversion Rate'] ?? null;
+      const newC = kpiFields['New Customers'] ?? 0;
+      const repC = kpiFields['Repeat Customers'] ?? 0;
+      orders   = newC + repC;
+      if (cr && cr > 0) sessions = Math.round(orders / (cr/100));
+      atc      = Math.round(sessions * 0.12);
+      checkout = Math.round(sessions * 0.05);
+    }
+
+    const max = Math.max(sessions, atc, checkout, orders, 1);
+    const rows = [
+      { label: 'Sessions',      val: sessions },
+      { label: 'Add to Cart',   val: atc },
+      { label: 'Checkout',      val: checkout },
+      { label: 'Orders',        val: orders },
+    ];
+    container.innerHTML = rows.map(r => {
+      const pct = Math.max(2, (r.val / max) * 100);
+      return '<div class="funnel-row">' +
+        '<div class="funnel-label">' + r.label + '</div>' +
+        '<div class="funnel-bar"><div class="funnel-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="funnel-val">' + r.val.toLocaleString('nl-NL') + '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="empty">Funnel data niet beschikbaar</div>';
+  }
+}
+
+async function loadAnomalies() {
+  const container = document.getElementById('anomalies');
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+    const isoSince = since.toISOString().split('T')[0];
+
+    const records = await fetchTable(TABLE_ANOMALY_LOG, {
+      'sort[0][field]': 'Timestamp',
+      'sort[0][direction]': 'desc',
+      'maxRecords': 50,
+      'filterByFormula': "AND(IS_AFTER({Timestamp}, '" + isoSince + "'), NOT({Resolved}))",
+    });
+
+    if (!records.length) {
+      container.innerHTML = '<div class="empty">Geen open afwijkingen in laatste 7 dagen. Alles stabiel.</div>';
+      return;
+    }
+
+    container.innerHTML = records.map(r => {
+      const f = r.fields;
+      const sev = (f['Severity'] || 'info').toLowerCase();
+      const ts = f['Timestamp'] ? new Date(f['Timestamp']).toLocaleString('nl-NL', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '';
+      return '<div class="anomaly-row">' +
+        '<div class="anomaly-dot ' + sev + '"></div>' +
+        '<div class="anomaly-body">' +
+          '<div class="anomaly-title">' + (f['Type'] || 'Anomaly') + ' — ' + (f['Engine'] || '') + '</div>' +
+          '<div class="anomaly-desc">' + (f['Description'] || '') + '</div>' +
+        '</div>' +
+        '<div class="anomaly-time">' + ts + '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="empty">Anomaly data niet beschikbaar: ' + e.message + '</div>';
+  }
+}
+
+async function loadTopCampaigns() {
+  const wrap = document.getElementById('campaigns-wrap');
+  try {
+    const records = await fetchTable(TABLE_AD_VARIANTS, {
+      'sort[0][field]': 'Revenue',
+      'sort[0][direction]': 'desc',
+      'maxRecords': 8,
+      'filterByFormula': "AND({Status}='Active', IS_AFTER({Launch Date}, DATEADD(TODAY(), -7, 'days')))",
+    });
+
+    if (!records.length) {
+      wrap.innerHTML = '<div class="empty">Geen actieve ads in laatste 7 dagen.</div>';
+      return;
+    }
+
+    const rows = records.map(r => {
+      const f = r.fields;
+      const roas = f['ROAS'] ?? 0;
+      const cls = roasClass(roas);
+      const color = cls === 'good' ? 'var(--green)' : cls === 'warn' ? 'var(--yellow)' : cls === 'bad' ? 'var(--red)' : 'inherit';
+      return '<tr>' +
+        '<td>' + (f['Ad Name'] || f['Ad ID'] || '—') + '</td>' +
+        '<td>' + fmtEur(f['Spend']) + '</td>' +
+        '<td>' + fmtEur(f['Revenue']) + '</td>' +
+        '<td style="color:' + color + ';font-weight:600">' + fmtNum(roas) + '</td>' +
+        '<td>' + (f['Conversions'] || 0) + '</td>' +
+        '<td>' + fmtEur(f['CPA']) + '</td>' +
+        '<td>' + (f['Winner Status'] || '—') + '</td>' +
+      '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<table><thead><tr>' +
+      '<th>Ad Name</th><th>Spend</th><th>Revenue</th><th>ROAS</th><th>Conv.</th><th>CPA</th><th>Status</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>';
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty">Campagne data niet beschikbaar: ' + e.message + '</div>';
+  }
+}
+
+/* ---------- Main ---------- */
+
+async function loadAll() {
+  clearError();
+  const { key, base } = getCreds();
+  if (!key || !base) { showSetup(); return; }
+
+  try {
+    const kpi = await loadDailyKPIs();
+    await Promise.all([
+      loadFunnel(kpi),
+      loadAnomalies(),
+      loadTopCampaigns(),
+    ]);
+  } catch (e) {
+    showError('Kon data niet laden: ' + e.message + '. Check je credentials via de Instellingen-knop.');
+  }
+}
+
+/* Initial bootstrap */
+window.addEventListener('DOMContentLoaded', () => {
+  const { key, base } = getCreds();
+  if (!key || !base) { showSetup(); }
+  else { loadAll(); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "campaign_id": "23851000000001",
+      "campaign_name": "TOF_Ongebleekt_NL",
+      "spend": "35.00",
+      "impressions": "8500",
+      "clicks": "140",
+      "ctr": "1.65",
+      "cpm": "4.11",
+      "actions": [{"action_type": "purchase", "value": "8"}],
+      "action_values": [{"action_type": "purchase", "value": "380.00"}],
+      "cost_per_action_type": [{"action_type": "purchase", "value": "4.37"}]
+    },
+    {
+      "campaign_id": "23851000000002",
+      "campaign_name": "Retarget_Loyal_Q2",
+      "spend": "22.00",
+      "impressions": "4200",
+      "clicks": "95",
+      "ctr": "2.26",
+      "cpm": "5.23",
+      "actions": [{"action_type": "purchase", "value": "6"}],
+      "action_values": [{"action_type": "purchase", "value": "260.00"}],
+      "cost_per_action_type": [{"action_type": "purchase", "value": "3.66"}]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "records": [
+    {
+      "id": "recAV01",
+      "fields": {
+        "campaign_name": "TOF_Ongebleekt_NL",
+        "Status": "Active",
+        "spend": 125.50,
+        "spend_24h": 35.00,
+        "clicks_24h": 140,
+        "sessions_24h": 220,
+        "revenue": 380.00,
+        "impressions": 8500,
+        "conversions": 8,
+        "date": "2026-04-16"
+      }
+    },
+    {
+      "id": "recAV02",
+      "fields": {
+        "campaign_name": "Retarget_Loyal_Q2",
+        "Status": "Active",
+        "spend": 78.00,
+        "spend_24h": 22.00,
+        "clicks_24h": 95,
+        "sessions_24h": 145,
+        "revenue": 260.00,
+        "impressions": 4200,
+        "conversions": 6,
+        "date": "2026-04-16"
+      }
+    }
+  ]
+}

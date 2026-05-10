@@ -1,0 +1,11 @@
+{
+  "id": "gm_msg_001",
+  "threadId": "gm_thread_001",
+  "snippet": "Dank voor je mail! We hebben interesse in een proefzending voor ons kantoor, graag een offerte.",
+  "payload": {
+    "headers": [
+      {"name": "From", "value": "inkoop@boutiquenoord.nl"},
+      {"name": "Subject", "value": "Re: Bamboo voor Boutique Hotel Noord"}
+    ]
+  }
+}

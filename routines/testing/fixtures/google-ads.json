@@ -1,0 +1,19 @@
+[
+  {
+    "results": [
+      {
+        "campaign": {"name": "Search_Brand_NL", "id": "12345678901"},
+        "metrics": {
+          "costMicros": "45000000",
+          "impressions": "3200",
+          "clicks": "180",
+          "ctr": "0.056",
+          "averageCpm": "14062500",
+          "conversions": "12",
+          "conversionsValue": "510.00",
+          "costPerConversion": "3750000"
+        }
+      }
+    ]
+  }
+]

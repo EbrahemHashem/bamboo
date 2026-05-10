@@ -1,0 +1,28 @@
+{
+  "records": [
+    {
+      "id": "recAB01",
+      "fields": {
+        "test_name": "Hero product page v2",
+        "Status": "Running",
+        "start_date": "2026-04-10",
+        "variant_a_url": "/products/ongebleekt-48",
+        "variant_b_url": "/products/ongebleekt-48-v2",
+        "variant_a_sessions": 240,
+        "variant_b_sessions": 235
+      }
+    },
+    {
+      "id": "recAB02",
+      "fields": {
+        "test_name": "Bundle discount framing",
+        "Status": "Running",
+        "start_date": "2026-04-12",
+        "variant_a_url": "/products/96r-bundle",
+        "variant_b_url": "/products/96r-bundle-percent",
+        "variant_a_sessions": 85,
+        "variant_b_sessions": 92
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "adArchiveID": "ad_new_001",
+    "snapshot": {
+      "body": {"markup": {"__html": "Ongebleekt bamboe 3 laags — 48 rollen"}},
+      "images": [{"original_image_url": "https://example.com/ad-img-1.jpg"}],
+      "videos": [],
+      "cta_text": "Shop Now",
+      "link_url": "https://example.com/product1"
+    },
+    "startDate": "2026-04-15",
+    "publisherPlatform": ["facebook"]
+  },
+  {
+    "adArchiveID": "ad_new_002",
+    "snapshot": {
+      "body": {"markup": {"__html": "Boomvrij papier voor thuis"}},
+      "images": [],
+      "videos": [{"video_hd_url": "https://example.com/ad-vid-1.mp4"}],
+      "cta_text": "Learn More",
+      "link_url": "https://example.com/product2"
+    },
+    "startDate": "2026-04-16",
+    "publisherPlatform": ["instagram", "facebook"]
+  }
+]

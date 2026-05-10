@@ -1,0 +1,8 @@
+{
+  "data": [
+    {"id": "flow_welcome", "attributes": {"name": "Welcome Series", "status": "live"}},
+    {"id": "flow_reorder_48", "attributes": {"name": "Reorder 48r", "status": "live"}},
+    {"id": "flow_reorder_96", "attributes": {"name": "Reorder 96r", "status": "live"}},
+    {"id": "flow_winback", "attributes": {"name": "Winback 90d", "status": "live"}}
+  ]
+}

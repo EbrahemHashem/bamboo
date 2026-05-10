@@ -1,0 +1,14 @@
+{
+  "id": "msg_mock_001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"summary\": \"Week was stabiel met €3125 omzet (+4% WoW). ROAS 3.1x boven break-even. Concurrentie-ads blijven angle 'waarde' pushen.\", \"top_wins\": [\"ROAS stabiel boven 3x\", \"B2B pipeline gegroeid naar €3300\", \"Email revenue share 17%\"], \"top_concerns\": [\"Winback flow open rate 18% (kritisch)\", \"CPA crept up van €17 naar €20\"], \"recommendations\": [\"Rebuild Winback 90d flow met nieuwe subject lines\", \"Audit TOF creatives op fatigue\", \"Push hero Ongebleekt 48r in alle nieuwe campaigns\"], \"action_items\": [\"Maandag: Winback flow rebuild gesprek\", \"Dinsdag: Top 5 fatigued ads pauzeren\", \"Woensdag: Offer Boutique Hotel Noord verzenden\"]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {"input_tokens": 500, "output_tokens": 300}
+}

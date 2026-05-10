@@ -1,0 +1,54 @@
+[
+  {
+    "name": "The Good Roll",
+    "website": "https://www.thegoodroll.com",
+    "instagram": "@thegoodroll",
+    "meta_page_url": "https://www.facebook.com/thegoodroll",
+    "meta_ad_library_search": "The Good Roll",
+    "tiktok": "@thegoodroll",
+    "niche": "Duurzaam toiletpapier — bamboe + gerecycled, B Corp, toilettenmissie",
+    "positioning": "Morele impact & sociaal verhaal. 'Double length' claim.",
+    "bamboo_edge": "Bamboo wint op nuchtere waarde per gebruik + lokale NL B2B. The Good Roll leunt zwaar op missie/impact.",
+    "priority": "high",
+    "scrape_frequency": "daily"
+  },
+  {
+    "name": "Bamboi",
+    "website": "https://www.bamboi.nl",
+    "instagram": "@bamboi.nl",
+    "meta_page_url": "https://www.facebook.com/bamboi.nl",
+    "meta_ad_library_search": "Bamboi",
+    "tiktok": "",
+    "niche": "100% bamboe toiletpapier — CO2/water/klimaatneutraal verhaal, plasticvrij",
+    "positioning": "Eenvoudig eco-voordeel + plasticvrij gemak. Wereldverbeterend frame.",
+    "bamboo_edge": "Bamboo wint op comfort + gebruikswaarde + zakelijke logica (Bamboi is vooral wereldverbeterend).",
+    "priority": "high",
+    "scrape_frequency": "daily"
+  },
+  {
+    "name": "The Cheeky Panda",
+    "website": "https://uk.cheekypanda.com",
+    "instagram": "@thecheekypanda",
+    "meta_page_url": "https://www.facebook.com/thecheekypanda",
+    "meta_ad_library_search": "The Cheeky Panda",
+    "tiktok": "@thecheekypanda",
+    "niche": "Zacht & duurzaam bamboe — subscriptions, double length, internationale uitstraling",
+    "positioning": "Zacht comfort in internationale consumentenstijl.",
+    "bamboo_edge": "Bamboo wint op Nederlandse nabijheid, eenvoud, concrete waardecommunicatie. Cheeky Panda is minder lokaal.",
+    "priority": "medium",
+    "scrape_frequency": "daily"
+  },
+  {
+    "name": "Who Gives A Crap",
+    "website": "https://nl.whogivesacrap.org",
+    "instagram": "@whogivesacrap",
+    "meta_page_url": "https://www.facebook.com/whogivesacrap",
+    "meta_ad_library_search": "Who Gives A Crap",
+    "tiktok": "@whogivesacrap",
+    "niche": "Bamboe + gerecycled toiletpapier — 50% winst gedoneerd, uitgesproken fun branding",
+    "positioning": "Impact + design + fun. Anti-saai eco.",
+    "bamboo_edge": "Bamboo wint op zakelijkheid, rust, prijs-rationaliteit voor nuchtere NL kopers.",
+    "priority": "high",
+    "scrape_frequency": "daily"
+  }
+]

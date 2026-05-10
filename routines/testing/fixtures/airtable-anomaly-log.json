@@ -1,0 +1,5 @@
+{
+  "records": [
+    {"id": "recA01", "fields": {"engine": "ad-management", "type": "CPA Spike", "severity": "Warning", "detected_at": "2026-04-15T14:00:00Z", "action": "Monitor + review top spenders"}}
+  ]
+}

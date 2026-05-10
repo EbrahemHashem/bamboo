@@ -1,0 +1,7 @@
+{
+  "data": {
+    "type": "event",
+    "id": "event_mock_001",
+    "attributes": {"event_name": "Reorder Reminder"}
+  }
+}

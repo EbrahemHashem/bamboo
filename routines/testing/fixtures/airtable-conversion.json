@@ -1,0 +1,6 @@
+{
+  "records": [
+    {"id": "recCV01", "fields": {"ad_id": "recAV01", "campaign": "TOF_Ongebleekt_NL", "orders_24h": 8, "cr_24h": 0.036, "cpa_24h": 15.5, "flag": "", "snapshot_at": "2026-04-17T06:00:00Z"}},
+    {"id": "recCV02", "fields": {"ad_id": "recAV02", "campaign": "Retarget_Loyal_Q2", "orders_24h": 5, "cr_24h": 0.034, "cpa_24h": 14.0, "flag": "", "snapshot_at": "2026-04-17T06:00:00Z"}}
+  ]
+}

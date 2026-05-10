@@ -1,0 +1,7 @@
+{
+  "records": [
+    {"id": "recC01", "fields": {"email": "customer1@example.com", "first_name": "Emma", "last_order": "2026-04-16T14:00:00Z", "total_orders": 1, "volume": 48}},
+    {"id": "recC02", "fields": {"email": "customer2@example.com", "first_name": "Jan", "last_order": "2026-04-16T10:00:00Z", "total_orders": 4, "volume": 96}},
+    {"id": "recC03", "fields": {"email": "customer3@example.com", "first_name": "Sophie", "last_order": "2026-02-10T09:00:00Z", "total_orders": 3, "volume": 24}}
+  ]
+}

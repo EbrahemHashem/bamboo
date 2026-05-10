@@ -1,0 +1,128 @@
+{
+  "name": "bamboo-b2b-pipeline",
+  "description": "2x/dag (09:00 + 15:00) B2B pipeline check — haal actieve leads op, check Gmail inbox voor replies, classificeer reactie, update pipeline stage, alert bij hot leads.",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 9,15 * * *"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "name": "Trigger 09:00 + 15:00",
+      "position": [250, 300],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            { "mode": "everyDay", "hour": 9, "minute": 0 },
+            { "mode": "everyDay", "hour": 15, "minute": 0 }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "name": "Haal Actieve B2B Leads op",
+      "position": [450, 300],
+      "parameters": {
+        "operation": "list",
+        "application": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "B2B Leads",
+        "additionalOptions": {
+          "filterByFormula": "AND(NOT({Stage} = 'Closed Won'), NOT({Stage} = 'Closed Lost'), OR({Stage} = 'Contacted', {Stage} = 'Engaged', {Stage} = 'Meeting Booked', {Stage} = 'Proposal Sent'))",
+          "fields": ["Lead ID", "Company Name", "Sector", "Contact Name", "Contact Email", "Stage", "Interest Level", "Last Contact Date", "Notes", "Outreach Messages"]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "name": "Check Gmail voor Replies",
+      "position": [650, 300],
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 50,
+        "filters": {
+          "q": "=from:({{ $json['Contact Email'] }}) newer_than:2d is:unread",
+          "labelIds": ["INBOX"]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "name": "Classificeer Reply",
+      "position": [850, 300],
+      "parameters": {
+        "functionCode": "// Classificeer inbound reply op basis van keywords.\n// Output: interest_level (High/Medium/Low), reply_type (interest/objection/timing/other), urgency (Urgent/Normal), next_stage, next_action\n\nconst results = [];\n\nfor (const item of items) {\n  const email = item.json;\n  const body = (email.snippet || email.textPlain || '').toLowerCase();\n  const subject = (email.subject || '').toLowerCase();\n  const text = `${subject} ${body}`;\n\n  let interestLevel = 'Unknown';\n  let replyType = 'other';\n  let urgency = 'Normal';\n  let nextStage = email.current_stage || 'Contacted';\n  let nextAction = 'Review reply handmatig';\n\n  // Interest signals\n  const highIntent = /\\b(interesse|graag|wanneer kunnen we|offerte|samples?|proefdoos|meeting|call|bellen|afspraak|deze week|zo snel mogelijk)\\b/.test(text);\n  const mediumIntent = /\\b(misschien|later|volgende maand|niet nu|terugkomen|overwegen)\\b/.test(text);\n  const objection = /\\b(te duur|geen interesse|al leverancier|nee bedankt|stop|unsubscribe)\\b/.test(text);\n  const timing = /\\b(volgende week|volgende maand|kwartaal|later dit jaar|eind van)\\b/.test(text);\n\n  if (objection) {\n    interestLevel = 'Low';\n    replyType = 'objection';\n    nextStage = /nee bedankt|geen interesse|stop/.test(text) ? 'Closed Lost' : 'Engaged';\n    nextAction = 'Bezwaar adresseren of sluiten';\n  } else if (highIntent) {\n    interestLevel = 'High';\n    replyType = 'interest';\n    urgency = /deze week|zo snel mogelijk|asap/.test(text) ? 'Urgent' : 'Normal';\n    nextStage = /meeting|call|afspraak/.test(text) ? 'Meeting Booked' : 'Engaged';\n    nextAction = urgency === 'Urgent' ? 'Direct bellen of mailen vandaag' : 'Reageren binnen 24u met voorstel';\n  } else if (timing) {\n    interestLevel = 'Medium';\n    replyType = 'timing';\n    nextStage = 'Engaged';\n    nextAction = 'Follow-up reminder inplannen voor genoemde datum';\n  } else if (mediumIntent) {\n    interestLevel = 'Medium';\n    replyType = 'timing';\n    nextStage = 'Engaged';\n    nextAction = 'Follow-up over 2 weken met extra waarde';\n  } else {\n    nextStage = 'Engaged';\n    nextAction = 'Handmatig reviewen';\n  }\n\n  results.push({\n    json: {\n      lead_id: email.lead_id,\n      record_id: email.record_id,\n      company_name: email.company_name,\n      contact_name: email.contact_name,\n      contact_email: email.from,\n      reply_snippet: email.snippet,\n      interest_level: interestLevel,\n      reply_type: replyType,\n      urgency,\n      next_stage: nextStage,\n      next_action: nextAction,\n      hot_lead: interestLevel === 'High' && urgency === 'Urgent',\n      last_contact_date: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nreturn results;\n"
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "name": "Update B2B Lead Stage",
+      "position": [1050, 300],
+      "parameters": {
+        "operation": "update",
+        "application": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "B2B Leads",
+        "id": "={{ $json.record_id }}",
+        "fields": "Stage, Interest Level, Last Contact Date, Next Action, Notes"
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "name": "Hot Lead?",
+      "position": [1250, 300],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hot_lead }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "name": "Hot Lead Alert",
+      "position": [1450, 240],
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=🔥 HOT B2B LEAD\n\nCompany: {{ $json.company_name }}\nContact: {{ $json.contact_name }} ({{ $json.contact_email }})\nSector: {{ $json.sector }}\nInterest: {{ $json.interest_level }} / {{ $json.urgency }}\n\nReply:\n\"{{ $json.reply_snippet }}\"\n\nActie: {{ $json.next_action }}\n\nLead in Airtable: {{ $json.lead_id }}"
+      }
+    }
+  ],
+  "connections": {
+    "Trigger 09:00 + 15:00": { "main": [[{ "node": "Haal Actieve B2B Leads op", "type": "main", "index": 0 }]] },
+    "Haal Actieve B2B Leads op": { "main": [[{ "node": "Check Gmail voor Replies", "type": "main", "index": 0 }]] },
+    "Check Gmail voor Replies": { "main": [[{ "node": "Classificeer Reply", "type": "main", "index": 0 }]] },
+    "Classificeer Reply": { "main": [[{ "node": "Update B2B Lead Stage", "type": "main", "index": 0 }]] },
+    "Update B2B Lead Stage": { "main": [[{ "node": "Hot Lead?", "type": "main", "index": 0 }]] },
+    "Hot Lead?": { "main": [[{ "node": "Hot Lead Alert", "type": "main", "index": 0 }], []] }
+  },
+  "env_vars_needed": [
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "GMAIL_CLIENT_ID",
+    "GMAIL_CLIENT_SECRET",
+    "GMAIL_REFRESH_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "notes": "2x per dag (09:00 + 15:00 Europe/Amsterdam) check pipeline. Loopt alleen over niet-closed leads. Gmail node checkt inbox op replies van contact_email per lead. Function node classificeert NL reply met keyword matching (interest/objection/timing). Hot leads (High + Urgent) = Telegram alert. Anders: stilletjes Airtable update. Voor productie kan Gmail vervangen worden door IMAP of Fathom als Nathan daar leads intake heeft."
+}

@@ -1,0 +1,8 @@
+{
+  "records": [
+    {"id": "rec01", "fields": {"name": "The Good Roll", "meta_page_id": "1234567890", "country": "NL", "niche": "bamboo-toilet-paper"}},
+    {"id": "rec02", "fields": {"name": "Bamboi", "meta_page_id": "2345678901", "country": "NL", "niche": "bamboo-toilet-paper"}},
+    {"id": "rec03", "fields": {"name": "The Cheeky Panda", "meta_page_id": "3456789012", "country": "NL", "niche": "bamboo-toilet-paper"}},
+    {"id": "rec04", "fields": {"name": "Who Gives A Crap", "meta_page_id": "4567890123", "country": "NL", "niche": "bamboo-toilet-paper"}}
+  ]
+}

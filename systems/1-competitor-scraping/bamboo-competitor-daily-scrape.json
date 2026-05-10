@@ -1,0 +1,138 @@
+{
+  "name": "bamboo-competitor-daily-scrape",
+  "description": "Dagelijks om 07:00 NL tijd: Meta Ad Library scrape van 4 Bamboo concurrenten via Apify, opslag in Airtable, Telegram ping naar Nathan",
+  "client": "Bamboo Disposables BV",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 7 * * *",
+    "timezone": "Europe/Amsterdam"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "name": "Dagelijkse Trigger 07:00 NL",
+      "config": {
+        "cronExpression": "0 7 * * *",
+        "timezone": "Europe/Amsterdam"
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Haal Bamboo Concurrenten op",
+      "config": {
+        "operation": "list",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Competitors",
+        "filterByFormula": "AND({Status}='Active')",
+        "fields": ["Name", "Facebook Page ID", "Priority", "Niche"]
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.splitInBatches",
+      "name": "Loop per Concurrent",
+      "config": {
+        "batchSize": 1
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Apify Meta Ad Library Scraper",
+      "config": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~meta-ad-library-scraper/runs?token={{ $env.APIFY_API_TOKEN }}",
+        "body": {
+          "pageIds": "={{ $json['Facebook Page ID'] }}",
+          "countryCode": "NL",
+          "adActiveStatus": "ACTIVE",
+          "maxItems": 50
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Wacht op Apify Run & Haal Dataset",
+      "config": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items?token={{ $env.APIFY_API_TOKEN }}",
+        "waitForCompletion": true
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.function",
+      "name": "Dedupliceer + Classificeer",
+      "config": {
+        "functionCode": "// Vergelijk Ad Archive IDs met bestaande Airtable rows\n// Filter duplicaten\n// Voeg Scrape Date, Scrape Batch ID, Bamboo Edge analyse toe\n// Classificeer angle op basis van body text (waarde/comfort/duurzaam/voorraadrust)\nreturn items;"
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Sla Nieuwe Ads op",
+      "config": {
+        "operation": "create",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Ad Research",
+        "fields": [
+          "Ad Archive ID",
+          "Page Name",
+          "Page ID",
+          "Competitor",
+          "Ad Library URL",
+          "Start Date",
+          "Is Active",
+          "Platforms",
+          "Display Format",
+          "Body Text",
+          "CTA Button",
+          "Landing Page URL",
+          "Scrape Date",
+          "Scrape Batch ID",
+          "Angle Category",
+          "Hook"
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "n8n-nodes-base.function",
+      "name": "Maak Dagelijkse Samenvatting",
+      "config": {
+        "functionCode": "// Tel nieuwe ads per concurrent\n// Highlight: lange-runners (>30 dagen), nieuwe launches (<7 dagen), format shifts\n// Return plain-text summary voor Telegram"
+      }
+    },
+    {
+      "id": 9,
+      "type": "n8n-nodes-base.telegram",
+      "name": "Telegram Ping naar Nathan",
+      "config": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🔍 *Bamboo Competitor Scrape Klaar*\n\nNieuwe ads vandaag: {{ $json.newAdsCount }}\n\n{{ $json.summary }}\n\n_Volledig rapport elke maandag 09:00 in je inbox._"
+      }
+    }
+  ],
+  "connections": [
+    [1, 2],
+    [2, 3],
+    [3, 4],
+    [4, 5],
+    [5, 6],
+    [6, 7],
+    [7, 8],
+    [8, 9]
+  ],
+  "env_vars_needed": [
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "APIFY_API_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "notes": "Loop per Bamboo concurrent (4 actief). Apify actor draait per page ID. Airtable deduplicatie op Ad Archive ID. Daily Telegram ping naar Nathan. Weekly digest draait via aparte workflow (bamboo-weekly-digest.json)."
+}

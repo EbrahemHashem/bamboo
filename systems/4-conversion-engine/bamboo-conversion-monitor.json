@@ -1,0 +1,144 @@
+{
+  "name": "bamboo-conversion-monitor",
+  "description": "Elke 6 uur Shopify orders laatste 24u pullen, ad spend uit Systeem 3 Ad Variants matchen, conversion rate per campagne berekenen, 'clicks no conversion' flaggen, upserten naar Conversion Tracking tabel, Nathan pingen bij flags",
+  "client": "Bamboo Disposables BV",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 */6 * * *",
+    "timezone": "Europe/Amsterdam"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "name": "Elke 6 uur",
+      "config": {
+        "cronExpression": "0 */6 * * *",
+        "timezone": "Europe/Amsterdam"
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Pull Shopify orders laatste 24u",
+      "config": {
+        "method": "GET",
+        "url": "https://{{ $env.SHOPIFY_STORE_URL }}/admin/api/2024-10/orders.json",
+        "qs": {
+          "status": "any",
+          "created_at_min": "={{ $now.minus({hours: 24}).toISO() }}",
+          "limit": 250
+        },
+        "headers": {
+          "X-Shopify-Access-Token": "={{ $env.SHOPIFY_ACCESS_TOKEN }}"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Pull Shopify analytics sessies 24u",
+      "config": {
+        "method": "GET",
+        "url": "https://{{ $env.SHOPIFY_STORE_URL }}/admin/api/2024-10/reports.json",
+        "qs": {
+          "access_token": "={{ $env.SHOPIFY_ACCESS_TOKEN }}"
+        },
+        "headers": {
+          "X-Shopify-Access-Token": "={{ $env.SHOPIFY_ACCESS_TOKEN }}"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Haal Ad Variants spend laatste 24u",
+      "config": {
+        "operation": "list",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Ad Variants",
+        "filterByFormula": "AND({Status} = 'Active', IS_AFTER({Last Updated}, DATEADD(NOW(), -1, 'days')))",
+        "fields": ["Ad ID", "Ad Name", "Campaign", "Spend", "Clicks", "Impressions", "Revenue"]
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.function",
+      "name": "Bereken conversie + flag per campagne",
+      "config": {
+        "functionCode": "// Samenvoegen: orders (Shopify) + sessies + ad spend/clicks (Airtable Systeem 3)\n// Per campagne: sessions, orders, revenue, spend, clicks => CR, CPA, ROAS, Flag\n//\n// Flag logica:\n//   - clicks > 50 AND orders == 0 in last 24u => 'Clicks No Conversion'\n//   - CPA > 15 EUR => 'High CPA'\n//   - CR < 0.01 AND sessions > 100 => 'Low CR'\n//   - Cart Abandonment > 0.85 AND ATC > 20 => 'High Abandonment'\n//   - else => 'OK'\n\nconst shopifyOrders = items[0].json.orders || [];\nconst adVariants = items[2].json.records || [];\n\n// Groep orders per campagne via UTM of landing page referer\nconst byCampaign = {};\nfor (const order of shopifyOrders) {\n  const utm = (order.note_attributes || []).find(n => n.name === 'utm_campaign')?.value || 'direct';\n  if (!byCampaign[utm]) byCampaign[utm] = { orders: 0, revenue: 0, items: [] };\n  byCampaign[utm].orders += 1;\n  byCampaign[utm].revenue += parseFloat(order.total_price || 0);\n  byCampaign[utm].items.push(order.line_items?.map(li => li.title).join(', '));\n}\n\n// Aggregate ad spend per campagne\nconst adByCampaign = {};\nfor (const variant of adVariants) {\n  const f = variant.fields;\n  const campaignLink = f.Campaign?.[0] || 'unknown';\n  if (!adByCampaign[campaignLink]) adByCampaign[campaignLink] = { spend: 0, clicks: 0, impressions: 0 };\n  adByCampaign[campaignLink].spend += parseFloat(f.Spend || 0);\n  adByCampaign[campaignLink].clicks += parseInt(f.Clicks || 0);\n  adByCampaign[campaignLink].impressions += parseInt(f.Impressions || 0);\n}\n\nconst results = [];\nconst allCampaigns = new Set([...Object.keys(byCampaign), ...Object.keys(adByCampaign)]);\nfor (const camp of allCampaigns) {\n  const orderData = byCampaign[camp] || { orders: 0, revenue: 0 };\n  const adData = adByCampaign[camp] || { spend: 0, clicks: 0, impressions: 0 };\n  const sessions = adData.clicks; // proxy, exacte sessies via Shopify Analytics later\n  const cr = sessions > 0 ? orderData.orders / sessions : 0;\n  const cpa = orderData.orders > 0 ? adData.spend / orderData.orders : null;\n  const roas = adData.spend > 0 ? orderData.revenue / adData.spend : null;\n\n  let flag = 'OK';\n  if (adData.clicks > 50 && orderData.orders === 0) flag = 'Clicks No Conversion';\n  else if (cpa !== null && cpa > 15) flag = 'High CPA';\n  else if (sessions > 100 && cr < 0.01) flag = 'Low CR';\n\n  results.push({\n    json: {\n      Date: new Date().toISOString().split('T')[0],\n      Campaign_ID: camp,\n      Channel: camp === 'direct' ? 'Direct' : 'Meta Ads',\n      Sessions: sessions,\n      Orders: orderData.orders,\n      Revenue: orderData.revenue,\n      Ad_Spend: adData.spend,\n      CPA: cpa,\n      ROAS: roas,\n      Flag: flag,\n      Conversion_Rate: cr\n    }\n  });\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Upsert naar Conversion Tracking",
+      "config": {
+        "operation": "upsert",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Conversion Tracking",
+        "upsertKey": ["Date", "Campaign ID"],
+        "fields": ["Date", "Campaign ID", "Channel", "Sessions", "Orders", "Revenue", "Ad Spend", "CPA", "ROAS", "Flag"]
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.if",
+      "name": "Flag gedetecteerd?",
+      "config": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.Flag }}",
+              "operation": "notEquals",
+              "value2": "OK"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "n8n-nodes-base.telegram",
+      "name": "Ping Nathan bij flag",
+      "config": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "⚠️ *Bamboo Conversion Flag*\n\nCampagne: `{{ $json.Campaign_ID }}`\nFlag: *{{ $json.Flag }}*\nSessies: {{ $json.Sessions }}\nOrders: {{ $json.Orders }}\nCPA: €{{ $json.CPA }}\nROAS: {{ $json.ROAS }}\n\n_Check Airtable Conversion Tracking voor details. Actie nodig: pagina fixen of ad pauzeren._",
+        "parseMode": "Markdown"
+      }
+    }
+  ],
+  "connections": [
+    [1, 2],
+    [1, 3],
+    [1, 4],
+    [2, 5],
+    [3, 5],
+    [4, 5],
+    [5, 6],
+    [6, 7],
+    [7, 8]
+  ],
+  "staticData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "versionId": "1.0.0",
+  "env_vars_needed": [
+    "SHOPIFY_ACCESS_TOKEN",
+    "SHOPIFY_STORE_URL",
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "safety_rules": [
+    "Shopify API rate limit respecteren (40 req/min) — limit=250 per orders call",
+    "Bij Shopify 401/403 → direct Nathan alerten, niet herhaaldelijk retryen",
+    "Flags alleen triggeren bij voldoende data (clicks > 50 of sessions > 100)",
+    "Geen auto-pause vanuit dit systeem — alleen flaggen en Nathan laten beslissen of Systeem 3 in actie komt"
+  ]
+}

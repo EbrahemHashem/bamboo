@@ -1,0 +1,153 @@
+{
+  "name": "bamboo-ad-performance-loop",
+  "description": "Elke 4 uur Meta Ads insights pullen, checken tegen Bamboo performance regels (ROAS/CPA/CTR), auto pause/scale/flag, log in Airtable, ping Nathan",
+  "client": "Bamboo Disposables BV",
+  "trigger": {
+    "type": "cron",
+    "schedule": "0 */4 * * *",
+    "timezone": "Europe/Amsterdam"
+  },
+  "nodes": [
+    {
+      "id": 1,
+      "type": "n8n-nodes-base.cron",
+      "name": "Elke 4 uur",
+      "config": {
+        "cronExpression": "0 */4 * * *",
+        "timezone": "Europe/Amsterdam"
+      }
+    },
+    {
+      "id": 2,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Haal Performance Rules op",
+      "config": {
+        "operation": "list",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Performance Rules",
+        "filterByFormula": "{Active} = 1"
+      }
+    },
+    {
+      "id": 3,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Pull Meta Ads Insights (today)",
+      "config": {
+        "method": "GET",
+        "url": "https://graph.facebook.com/v19.0/act_{{ $env.META_AD_ACCOUNT_ID }}/insights",
+        "qs": {
+          "fields": "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,actions,action_values,purchase_roas",
+          "level": "ad",
+          "date_preset": "today",
+          "access_token": "={{ $env.META_ACCESS_TOKEN }}",
+          "limit": 500
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "n8n-nodes-base.function",
+      "name": "Evalueer per Ad tegen Bamboo Regels",
+      "config": {
+        "functionCode": "// Voor elke ad:\n//   - ROAS < 1.5 + spend > 20 => PAUSE\n//   - ROAS > 3.0 + spend < daily_cap => SCALE +20%\n//   - CTR < 0.5% + impressions > 1000 => FLAG (creative refresh)\n//   - CPA > max_cpa => PAUSE\n//   - CPC > 2.50 => PAUSE\n// Return array van {ad_id, action, reason, metrics}\nconst rules = items[0].json.rules;  // uit node 2\nconst ads = items[1].json.data;      // uit node 3\n\nconst decisions = ads.map(ad => {\n  const roas = parseFloat(ad.purchase_roas?.[0]?.value || 0);\n  const spend = parseFloat(ad.spend || 0);\n  const ctr = parseFloat(ad.ctr || 0);\n  const cpc = parseFloat(ad.cpc || 0);\n  const impressions = parseInt(ad.impressions || 0);\n  \n  if (roas < 1.5 && spend > 20) {\n    return { ad_id: ad.ad_id, action: 'pause', reason: `ROAS ${roas.toFixed(2)} < 1.5, spend €${spend}`, metrics: { roas, spend, ctr, cpc } };\n  }\n  if (roas > 3.0 && spend < 100) {\n    return { ad_id: ad.ad_id, adset_id: ad.adset_id, action: 'scale', reason: `Winner ROAS ${roas.toFixed(2)} > 3.0`, metrics: { roas, spend, ctr, cpc } };\n  }\n  if (ctr < 0.5 && impressions > 1000) {\n    return { ad_id: ad.ad_id, action: 'flag', reason: `CTR ${ctr}% low, needs creative refresh`, metrics: { roas, spend, ctr, cpc } };\n  }\n  if (cpc > 2.5) {\n    return { ad_id: ad.ad_id, action: 'pause', reason: `CPC €${cpc} > €2.50`, metrics: { roas, spend, ctr, cpc } };\n  }\n  return { ad_id: ad.ad_id, action: 'ok', reason: 'Within thresholds', metrics: { roas, spend, ctr, cpc } };\n});\n\nreturn decisions.map(d => ({ json: d }));"
+      }
+    },
+    {
+      "id": 5,
+      "type": "n8n-nodes-base.switch",
+      "name": "Route beslissing",
+      "config": {
+        "dataPropertyName": "action",
+        "values": [
+          { "value": "pause", "output": 0 },
+          { "value": "scale", "output": 1 },
+          { "value": "flag", "output": 2 },
+          { "value": "ok", "output": 3 }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Pause Ad (Meta API)",
+      "config": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/{{ $json.ad_id }}",
+        "body": {
+          "status": "PAUSED",
+          "access_token": "={{ $env.META_ACCESS_TOKEN }}"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "n8n-nodes-base.httpRequest",
+      "name": "Scale Budget +20% (Meta API)",
+      "config": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/{{ $json.adset_id }}",
+        "body": {
+          "daily_budget": "={{ Math.round($json.metrics.spend * 1.2 * 100) }}",
+          "access_token": "={{ $env.META_ACCESS_TOKEN }}"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "n8n-nodes-base.merge",
+      "name": "Verzamel alle beslissingen",
+      "config": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": 9,
+      "type": "n8n-nodes-base.airtable",
+      "name": "Log in Decisions Log",
+      "config": {
+        "operation": "create",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "Decisions Log",
+        "fields": ["Timestamp", "Ad ID", "Ad Name", "Action", "Reason", "ROAS", "Spend", "CTR", "CPC", "New Status"]
+      }
+    },
+    {
+      "id": 10,
+      "type": "n8n-nodes-base.telegram",
+      "name": "Ping Nathan (alleen bij actie)",
+      "config": {
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "📊 *Bamboo Ads Update*\n\nActies afgelopen 4u:\n⏸ Gepauzeerd: {{ $json.pausedCount }}\n📈 Opgeschaald: {{ $json.scaledCount }}\n🚩 Geflagged: {{ $json.flaggedCount }}\n\n_Details in Airtable Decisions Log._"
+      }
+    }
+  ],
+  "connections": [
+    [1, 2],
+    [1, 3],
+    [2, 4],
+    [3, 4],
+    [4, 5],
+    [5, 6],
+    [5, 7],
+    [5, 8],
+    [6, 8],
+    [7, 8],
+    [8, 9],
+    [9, 10]
+  ],
+  "env_vars_needed": [
+    "META_AD_ACCOUNT_ID",
+    "META_ACCESS_TOKEN",
+    "AIRTABLE_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID"
+  ],
+  "safety_rules": [
+    "Scale maximaal +20% per run",
+    "Pause threshold ROAS < 1.5 (Bamboo break-even inclusief marge)",
+    "Daily budget cap check — bij overschrijding, alles pausen + alert",
+    "Bij Meta API errors: geen herhaalpogingen, direct Nathan alerten"
+  ]
+}

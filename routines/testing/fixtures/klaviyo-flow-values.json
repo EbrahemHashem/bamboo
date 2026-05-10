@@ -1,0 +1,20 @@
+{
+  "data": {
+    "attributes": {
+      "results": [
+        {
+          "statistics": {
+            "opens": 450,
+            "opens_unique": 380,
+            "clicks": 85,
+            "clicks_unique": 72,
+            "conversions": 12,
+            "conversion_value": 450.00,
+            "unsubscribes": 3,
+            "recipients": 1200
+          }
+        }
+      ]
+    }
+  }
+}
