@@ -664,7 +664,9 @@
     // ── Activity Feed (SSE) ──
     function connectFeed() {
       if (!MC.online) {
-        loadSnapshotFeed();
+        loadActivityFeed();
+        // Poll the Vercel /api/activity endpoint every 60s for live updates
+        setInterval(loadActivityFeed, 60000);
         return;
       }
 
@@ -675,38 +677,62 @@
         },
         () => {},
         () => {
-          loadSnapshotFeed();
+          loadActivityFeed();
         }
       );
     }
 
-    async function loadSnapshotFeed() {
+    async function loadActivityFeed() {
       const feed = document.getElementById('activityFeed');
-      const data = await Bridge.fetch('/api/activity');
-      const events = (data && data.events) ? data.events : [];
+      const countEl = document.getElementById('feedCount');
+
+      // Try the live Vercel endpoint first (proxies Airtable BM_Executions)
+      let payload = null;
+      try {
+        const r = await fetch('/api/activity');
+        if (r.ok) payload = await r.json();
+      } catch {}
+
+      let events = (payload && payload.events) ? payload.events : [];
+      let live = payload && payload._live;
+
+      // Fall back to bundled snapshot if live source returned nothing
+      if (!events.length) {
+        const snap = await Bridge.fetch('/api/activity');
+        events = (snap && snap.events) ? snap.events : [];
+      }
 
       if (!events.length) {
         feed.innerHTML = `
           <div class="empty-state">
             <div class="empty-icon">&#9889;</div>
             <div class="empty-title">No recent activity</div>
-            <div class="empty-desc">Start the bridge server locally for live events</div>
+            <div class="empty-desc">${payload && payload._error ? payload._error : 'Start the bridge server locally for live events'}</div>
           </div>
         `;
+        countEl.textContent = '0 events';
         return;
       }
 
-      feed.innerHTML = events.map(e => `
-        <div class="feed-item">
-          <div class="feed-icon">&#9889;</div>
-          <div class="feed-content">
-            <div class="feed-text">${e.text}</div>
-            <div class="feed-time">${e.time}</div>
+      feed.innerHTML = events.map(e => {
+        const icon = e.type === 'error' ? '&#9888;'
+                   : e.type === 'success' ? '&#10003;'
+                   : e.type === 'empty' ? '&#9675;'
+                   : '&#9889;';
+        const meta = e.meta ? `<div class="feed-meta">${e.meta}</div>` : '';
+        return `
+          <div class="feed-item">
+            <div class="feed-icon">${icon}</div>
+            <div class="feed-content">
+              <div class="feed-text">${e.text}</div>
+              <div class="feed-time">${e.time}${meta ? ' · ' + e.meta : ''}</div>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+
       feedEventCount = events.length;
-      document.getElementById('feedCount').textContent = `${feedEventCount} events`;
+      countEl.textContent = `${feedEventCount} events${live ? ' · live' : ''}`;
     }
 
     function addFeedItem(data) {
