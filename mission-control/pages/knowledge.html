@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .knowledge-grid {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 16px;
+      min-height: calc(100vh - 160px);
+    }
+
+    .file-tree {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px;
+      overflow-y: auto;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-sub);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .file-item:hover {
+      background: var(--accent-ghost);
+      color: var(--text);
+    }
+
+    .file-item.active {
+      background: rgba(0,255,136,0.06);
+      color: var(--accent);
+    }
+
+    .file-icon {
+      font-size: 14px;
+      opacity: 0.5;
+    }
+
+    .file-viewer {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .viewer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .viewer-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .viewer-content {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-sub);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (max-width: 900px) {
+      .knowledge-grid { grid-template-columns: 1fr; }
+      .file-tree { max-height: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Knowledge</h1>
+          <div class="subtitle">CLAUDE.md, memory files, workspace context</div>
+        </div>
+      </div>
+
+      <div class="knowledge-grid fade-up fade-up-1">
+        <!-- File Tree -->
+        <div class="file-tree">
+          <div class="label" style="margin-bottom:8px;">Files</div>
+          <div id="fileTree">
+            <div class="file-item active" onclick="loadFile('CLAUDE.md')">
+              <span class="file-icon">&#128196;</span> CLAUDE.md
+            </div>
+            <div class="file-item" onclick="loadFile('memory/MEMORY.md')">
+              <span class="file-icon">&#128024;</span> MEMORY.md
+            </div>
+            <div class="file-item" onclick="loadFile('tasks/todo.md')">
+              <span class="file-icon">&#9744;</span> todo.md
+            </div>
+          </div>
+        </div>
+
+        <!-- Viewer -->
+        <div class="file-viewer">
+          <div class="viewer-header">
+            <span class="viewer-path" id="viewerPath">CLAUDE.md</span>
+            <button class="btn btn-ghost btn-sm" onclick="refreshFile()">Refresh</button>
+          </div>
+          <div class="viewer-content" id="viewerContent">
+            Loading...
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let currentFile = 'CLAUDE.md';
+
+    (async () => {
+      await MC.init();
+      renderNav('knowledge');
+      initMobileNav();
+      loadFile('CLAUDE.md');
+    })();
+
+    async function loadFile(path) {
+      currentFile = path;
+
+      // Update active state
+      document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+      const clicked = [...document.querySelectorAll('.file-item')].find(el => el.textContent.includes(path.split('/').pop()));
+      if (clicked) clicked.classList.add('active');
+
+      document.getElementById('viewerPath').textContent = path;
+      document.getElementById('viewerContent').textContent = 'Loading...';
+
+      const data = await Bridge.fetch('/api/files/read?path=' + encodeURIComponent(path));
+
+      if (data && data.content) {
+        document.getElementById('viewerContent').textContent = data.content;
+      } else {
+        document.getElementById('viewerContent').textContent = 'Unable to load file. Bridge may be offline.';
+      }
+    }
+
+    function refreshFile() {
+      loadFile(currentFile);
+    }
+  </script>
+</body>
+</html>

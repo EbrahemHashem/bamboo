@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .chat-layout {
+      display: flex;
+      height: calc(100vh - 120px);
+      gap: 16px;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chat-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chat-model {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chat-welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      gap: 16px;
+    }
+
+    .chat-welcome-icon {
+      font-size: 48px;
+      opacity: 0.15;
+    }
+
+    .chat-welcome h3 {
+      font-size: 16px;
+      color: var(--text-sub);
+    }
+
+    .chat-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .chat-suggestion {
+      font-family: var(--font-body);
+      font-size: 13px;
+      padding: 8px 14px;
+      background: var(--accent-ghost);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-sub);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chat-suggestion:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .chat-msg {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      line-height: 1.6;
+      animation: fadeUp 0.3s ease;
+    }
+
+    .chat-msg.user {
+      align-self: flex-end;
+      background: rgba(0,255,136,0.06);
+      border: 1px solid rgba(0,255,136,0.12);
+      color: var(--text);
+    }
+
+    .chat-msg.assistant {
+      align-self: flex-start;
+      background: var(--surface-light);
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      word-break: break-word;
+    }
+
+    .chat-msg.assistant ul,
+    .chat-msg.assistant ol {
+      margin: 4px 0;
+      padding-left: 20px;
+    }
+
+    .chat-msg.assistant li {
+      margin-bottom: 2px;
+    }
+
+    .chat-msg.assistant strong {
+      color: var(--text);
+    }
+
+    .chat-msg.tool {
+      align-self: flex-start;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      max-width: 90%;
+    }
+
+    .chat-msg code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(0,255,136,0.06);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .chat-msg pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .chat-msg pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .chat-input-wrap {
+      display: flex;
+      gap: 8px;
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .chat-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+    }
+
+    .chat-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0,255,136,0.08);
+    }
+
+    .chat-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .chat-input:disabled {
+      opacity: 0.5;
+    }
+
+    .chat-send {
+      width: 44px;
+      height: 44px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .chat-send:hover {
+      box-shadow: var(--glow-md);
+      transform: translateY(-1px);
+    }
+
+    .chat-send:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .chat-shortcut-hint {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      text-align: right;
+      padding: 0 16px 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Skills sidebar */
+    .chat-skills {
+      width: 200px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow-y: auto;
+      padding: 12px;
+      flex-shrink: 0;
+    }
+
+    .chat-skills-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .skill-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-sub);
+      background: none;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .skill-item:hover {
+      background: var(--accent-ghost);
+      color: var(--accent);
+    }
+
+    .typing-indicator {
+      display: none;
+      align-self: flex-start;
+      padding: 12px 16px;
+      background: var(--surface-light);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .typing-indicator.visible {
+      display: flex;
+    }
+
+    .typing-dots {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .typing-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: typingBounce 1.4s ease-in-out infinite;
+    }
+
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8) translateY(0); }
+      40% { opacity: 1; transform: scale(1) translateY(-4px); }
+    }
+
+    .chat-offline-msg {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 900px) {
+      .chat-skills { display: none; }
+      .chat-layout { height: calc(100vh - 90px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Chat Unavailable</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Chat</h1>
+          <div class="subtitle">Talk to Claude Code directly</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="stopBtn" onclick="stopAgent()" style="display:none;">
+          Stop
+        </button>
+      </div>
+
+      <div class="chat-layout fade-up fade-up-1">
+        <!-- Chat Main -->
+        <div class="chat-main">
+          <div class="chat-header">
+            <div class="chat-header-left">
+              <div class="dot dot-green dot-pulse" id="chatDot"></div>
+              <span class="chat-model">Claude Code</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="clearChat()">Clear</button>
+          </div>
+
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-welcome" id="chatWelcome">
+              <div class="chat-welcome-icon">&#9993;</div>
+              <h3>Chat with Claude Code</h3>
+              <p class="text-sub" style="font-size:13px;">Send a message or run a skill command</p>
+              <div class="chat-suggestions">
+                <button class="chat-suggestion" onclick="sendSkill('What did you do today?')">What did you do today?</button>
+                <button class="chat-suggestion" onclick="sendSkill('Check my scheduled tasks')">Check scheduled tasks</button>
+                <button class="chat-suggestion" onclick="sendSkill('Summarize recent activity')">Summarize activity</button>
+              </div>
+            </div>
+            <div class="typing-indicator" id="typingIndicator">
+              <div class="typing-dots"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+
+          <div class="chat-shortcut-hint">Cmd+Enter or Enter to send</div>
+          <div class="chat-input-wrap">
+            <textarea class="chat-input" id="chatInput" placeholder="Message Claude Code..." rows="1"></textarea>
+            <button class="chat-send" id="sendBtn" onclick="sendMessage()">&#9654;</button>
+          </div>
+        </div>
+
+        <!-- Skills Sidebar -->
+        <div class="chat-skills" id="skillsSidebar">
+          <div class="chat-skills-title">Quick Commands</div>
+          <div id="skillsList">
+            <div class="skeleton-item"><div class="skeleton-line" style="width:80%;height:12px;"></div></div>
+            <div class="skeleton-item"><div class="skeleton-line" style="width:60%;height:12px;"></div></div>
+            <div class="skeleton-item"><div class="skeleton-line" style="width:70%;height:12px;"></div></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let activeStream = null;
+    let sessionId = null;
+
+    (async () => {
+      await MC.init();
+      renderNav('chat');
+      initMobileNav();
+
+      // Load skills list
+      loadSkills();
+
+      // Restore chat history
+      restoreHistory();
+
+      // Setup keyboard shortcuts
+      setupKeyboard();
+
+      // If offline, disable input
+      if (!MC.online) {
+        document.getElementById('chatInput').placeholder = 'Bridge offline — chat unavailable';
+        document.getElementById('chatInput').disabled = true;
+        document.getElementById('sendBtn').disabled = true;
+      }
+    })();
+
+    // ── Keyboard shortcuts ──
+    function setupKeyboard() {
+      const input = document.getElementById('chatInput');
+
+      input.addEventListener('keydown', (e) => {
+        // Enter (no shift) sends
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+          return;
+        }
+        // Cmd+Enter also sends
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          sendMessage();
+          return;
+        }
+      });
+
+      // Auto-resize textarea
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      });
+    }
+
+    // ── Send Message ──
+    function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (!MC.online) {
+        showToast('Bridge is offline — cannot send messages');
+        return;
+      }
+
+      input.value = '';
+      input.style.height = 'auto';
+
+      addMessage('user', text);
+      hideWelcome();
+
+      // Determine endpoint
+      const endpoint = sessionId
+        ? `/reply-stream?msg=${encodeURIComponent(text)}&session=${sessionId}`
+        : `/run-stream?cmd=${encodeURIComponent(text)}`;
+
+      startStream(endpoint);
+    }
+
+    function sendSkill(cmd) {
+      document.getElementById('chatInput').value = cmd;
+      sendMessage();
+    }
+
+    // ── Stream ──
+    function startStream(endpoint) {
+      const sendBtn = document.getElementById('sendBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const typing = document.getElementById('typingIndicator');
+      const input = document.getElementById('chatInput');
+
+      sendBtn.disabled = true;
+      input.disabled = true;
+      stopBtn.style.display = '';
+      typing.classList.add('visible');
+
+      let buffer = '';
+
+      activeStream = Bridge.stream(
+        endpoint,
+        // onData
+        (data) => {
+          typing.classList.remove('visible');
+
+          if (data.type === 'output') {
+            buffer += data.text || '';
+            updateStreamMessage(buffer);
+          } else if (data.type === 'session') {
+            sessionId = data.sessionId;
+          } else if (data.type === 'error') {
+            addMessage('tool', '&#9888; ' + (data.text || data.message || 'Unknown error'));
+          } else if (data.type === 'tool') {
+            addMessage('tool', '&#9881; ' + (data.text || data.name || 'Tool call'));
+          } else if (data.type === 'done') {
+            finishStream(buffer);
+          }
+        },
+        // onDone
+        () => finishStream(buffer),
+        // onError
+        () => {
+          addMessage('tool', '&#9888; Stream connection lost');
+          finishStream(buffer);
+        }
+      );
+    }
+
+    function finishStream(buffer) {
+      const sendBtn = document.getElementById('sendBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const typing = document.getElementById('typingIndicator');
+      const input = document.getElementById('chatInput');
+
+      sendBtn.disabled = false;
+      input.disabled = false;
+      stopBtn.style.display = 'none';
+      typing.classList.remove('visible');
+      activeStream = null;
+
+      // Finalize streaming message with markdown rendering
+      const streaming = document.querySelector('.chat-msg.streaming');
+      if (streaming) {
+        streaming.classList.remove('streaming');
+        streaming.innerHTML = renderMarkdown(buffer);
+      }
+
+      input.focus();
+      saveHistory();
+    }
+
+    function updateStreamMessage(text) {
+      let el = document.querySelector('.chat-msg.streaming');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'chat-msg assistant streaming';
+        const messages = document.getElementById('chatMessages');
+        messages.insertBefore(el, document.getElementById('typingIndicator'));
+      }
+      // Show raw text while streaming, render markdown on finish
+      el.textContent = text;
+      scrollToBottom();
+    }
+
+    // ── Stop ──
+    async function stopAgent() {
+      if (activeStream) {
+        activeStream.close();
+        activeStream = null;
+      }
+      await Bridge.post('/stop', {});
+      finishStream('');
+      showToast('Agent stopped');
+    }
+
+    // ── UI Helpers ──
+    function addMessage(role, text) {
+      hideWelcome();
+      const el = document.createElement('div');
+      el.className = `chat-msg ${role}`;
+      if (role === 'assistant') {
+        el.innerHTML = renderMarkdown(text);
+      } else {
+        el.innerHTML = text;
+      }
+      const messages = document.getElementById('chatMessages');
+      messages.insertBefore(el, document.getElementById('typingIndicator'));
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      const messages = document.getElementById('chatMessages');
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function hideWelcome() {
+      const w = document.getElementById('chatWelcome');
+      if (w) w.remove();
+    }
+
+    function clearChat() {
+      const messages = document.getElementById('chatMessages');
+      // Remove all chat messages but keep typing indicator
+      const typing = document.getElementById('typingIndicator');
+      messages.innerHTML = '';
+
+      // Re-add welcome
+      messages.innerHTML = `
+        <div class="chat-welcome" id="chatWelcome">
+          <div class="chat-welcome-icon">&#9993;</div>
+          <h3>Chat with Claude Code</h3>
+          <p class="text-sub" style="font-size:13px;">Send a message or run a skill command</p>
+          <div class="chat-suggestions">
+            <button class="chat-suggestion" onclick="sendSkill('What did you do today?')">What did you do today?</button>
+            <button class="chat-suggestion" onclick="sendSkill('Check my scheduled tasks')">Check scheduled tasks</button>
+            <button class="chat-suggestion" onclick="sendSkill('Summarize recent activity')">Summarize activity</button>
+          </div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+      `;
+      sessionId = null;
+      localStorage.removeItem('mc_chat_history');
+      showToast('Chat cleared');
+    }
+
+    // ── History ──
+    function saveHistory() {
+      const msgs = document.querySelectorAll('.chat-msg');
+      const history = Array.from(msgs).map(m => ({
+        role: m.classList.contains('user') ? 'user' : m.classList.contains('tool') ? 'tool' : 'assistant',
+        text: m.textContent
+      })).slice(-50);
+
+      localStorage.setItem('mc_chat_history', JSON.stringify(history));
+    }
+
+    function restoreHistory() {
+      try {
+        const history = JSON.parse(localStorage.getItem('mc_chat_history'));
+        if (history && history.length > 0) {
+          hideWelcome();
+          history.forEach(m => addMessage(m.role, m.text));
+        }
+      } catch {}
+    }
+
+    // ── Quick Commands: Greatgoodie Routines ──
+    async function loadSkills() {
+      const container = document.getElementById('skillsList');
+      const data = await Bridge.fetch('/api/cron/list');
+      const routines = (data && data.jobs) ? data.jobs.filter(j => j.source === 'routine') : [];
+
+      if (routines.length === 0) {
+        container.innerHTML = '<div style="font-size:11px;color:var(--text-muted);padding:8px;">No routines configured</div>';
+        return;
+      }
+
+      container.innerHTML = routines.map(r => {
+        const id = (r.id || '').replace(/^routine:/, '');
+        const shortName = (r.name || id).replace(/ — .*$/, '').replace(/^R\d+ — /, '');
+        const full = r.name || id;
+        return `<button class="skill-item" title="${full}\n\nSchedule: ${r.schedule || '—'}" onclick="runRoutineInChat('${id}', '${full.replace(/'/g, "\\'")}')">${full}</button>`;
+      }).join('');
+    }
+
+    // Run a routine and stream its output into the chat as an assistant message
+    function runRoutineInChat(routineId, displayName) {
+      if (!routineId) return;
+      hideWelcome();
+      addMessage('user', `▶ Run: ${displayName}`);
+
+      const sendBtn = document.getElementById('sendBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const typing  = document.getElementById('typingIndicator');
+      const input   = document.getElementById('chatInput');
+
+      sendBtn.disabled = true;
+      input.disabled = true;
+      stopBtn.style.display = '';
+      typing.classList.add('visible');
+
+      let buffer = '';
+      if (activeStream) { activeStream.close(); activeStream = null; }
+
+      const url = `${MC.bridgeUrl}/api/routine/run?name=${encodeURIComponent(routineId)}`;
+      const source = new EventSource(url);
+      activeStream = { close: () => source.close() };
+
+      const handle = (data) => {
+        typing.classList.remove('visible');
+        if (data.type === 'start') {
+          buffer = `Running ${data.routine || displayName}...\n\n`;
+          updateStreamMessage(buffer);
+        } else if (data.type === 'output') {
+          buffer += data.text || '';
+          updateStreamMessage(buffer);
+        } else if (data.type === 'error') {
+          buffer += `[error] ${data.text || ''}`;
+          updateStreamMessage(buffer);
+        } else if (data.type === 'done') {
+          buffer += `\n\n✅ Done (exit ${data.exitCode ?? 0})`;
+          source.close();
+          activeStream = null;
+          finishStream(buffer);
+        }
+      };
+
+      source.onmessage = (e) => { try { handle(JSON.parse(e.data)); } catch {} };
+      source.onerror = () => {
+        source.close();
+        if (activeStream) {
+          buffer += '\n\n⚠ Connection ended';
+          activeStream = null;
+          finishStream(buffer);
+        }
+      };
+    }
+  </script>
+</body>
+</html>

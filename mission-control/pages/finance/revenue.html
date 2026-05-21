@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revenue — Finance — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/nav.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="./_shared.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div><h1>Revenue Performance</h1><div class="subtitle">YoY omzet — volume vs prijs decompositie</div></div>
+      </div>
+      <div class="finance-tabs" id="financeTabs"></div>
+
+      <div class="filter-bar-fin fade-up fade-up-1">
+        <label>Month</label><select id="fMonth"><option value="all">All</option></select>
+        <label>Region</label><select id="fRegion"><option value="all">All</option></select>
+        <label>Product</label><select id="fProduct"><option value="all">All</option></select>
+        <label>Channel</label><select id="fChannel"><option value="all">All</option></select>
+      </div>
+
+      <div id="finWarnings"></div>
+      <div id="content"><div style="text-align:center; padding:40px; color: var(--text-muted);">Loading…</div></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="../../js/config.js"></script>
+  <script src="../../js/nav.js"></script>
+  <script src="./_shared.js"></script>
+  <script>
+    let charts = {};
+
+    (async () => {
+      await MC.init();
+      renderNav('finance');
+      initMobileNav();
+      renderFinanceTabs('revenue');
+      themeChart();
+      await reload();
+      document.querySelectorAll('#fMonth, #fRegion, #fProduct, #fChannel').forEach(el => el.addEventListener('change', reload));
+    })();
+
+    async function reload() {
+      const params = { month: g('fMonth'), region: g('fRegion'), product: g('fProduct'), channel: g('fChannel') };
+      const data = await loadFinance('revenue', params);
+      if (!data || !data.configured) return showEmpty();
+      if (data.present === false) { document.getElementById('content').innerHTML = renderEmpty('Revenue', 'revenue.csv'); return; }
+      populateFilters(data.filters);
+      renderWarnings(data.warnings);
+      render(data);
+    }
+
+    function g(id) { return document.getElementById(id).value; }
+    function showEmpty() { document.getElementById('content').innerHTML = `<div class="fin-empty"><div class="ic">&#128735;</div><div class="title">Geen client workspace</div></div>`; }
+
+    function populateFilters(f) {
+      fillOptions('fMonth', f.months); fillOptions('fRegion', f.regions);
+      fillOptions('fProduct', f.products); fillOptions('fChannel', f.channels);
+    }
+    function fillOptions(id, values) {
+      const el = document.getElementById(id); const current = el.value;
+      const existing = new Set(Array.from(el.options).map(o => o.value));
+      values.forEach(v => { if (!existing.has(String(v))) { const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o); }});
+      if (Array.from(el.options).some(o => o.value === current)) el.value = current;
+    }
+
+    function render(data) {
+      const k = data.kpis;
+      const d = data.decomposition;
+      const html = `
+        <div class="kpi-grid">
+          ${kpiCard('Revenue 2024', fmtMoney(k.revenue_2024))}
+          ${kpiCard('Revenue 2025', fmtMoney(k.revenue_2025), '', true)}
+          ${kpiCard('YoY Change', fmtMoney(k.yoy_change), fmtPct(k.yoy_pct), k.yoy_change >= 0)}
+          ${kpiCard('Units 2025', fmtCount(k.units_2025), 'AOV: $' + fmtCount(k.avg_aov_2025))}
+          ${kpiCard('Volume / Price split', (d.total ? Math.round((d.volume_effect / d.total) * 100) : 0) + '% vol', 'residual ' + fmtMoney(d.residual))}
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Revenue trend <span class="sub">2024 vs 2025</span></div>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">YoY decomposition <span class="sub">Volume · Price · Residual</span></div>
+            <div class="chart-wrap"><canvas id="decompChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Revenue per product</div>
+            <div class="chart-wrap"><canvas id="productChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Revenue per channel</div>
+            <div class="chart-wrap"><canvas id="channelChart"></canvas></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
+
+      renderTrend(data.trend);
+      renderDecomp(d, k);
+      renderBar('productChart', data.byProduct, 'product', 'revenue_2024', 'revenue_2025');
+      renderBar('channelChart', data.byChannel, 'channel', 'revenue_2024', 'revenue_2025');
+    }
+
+    function renderTrend(trend) {
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      if (charts.trend) charts.trend.destroy();
+      charts.trend = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: trend.map(t => t.month),
+          datasets: [
+            { label: '2024', data: trend.map(t => t.revenue_2024), backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.4)', borderWidth: 1 },
+            { label: '2025', data: trend.map(t => t.revenue_2025), backgroundColor: FIN_COLORS.greenGhost, borderColor: FIN_COLORS.green, borderWidth: 1 },
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+
+    function renderDecomp(d, k) {
+      const ctx = document.getElementById('decompChart').getContext('2d');
+      if (charts.decomp) charts.decomp.destroy();
+      // Waterfall via floating bars: start, volume+, price+, residual, end
+      const startVal = k.revenue_2024;
+      const end1 = startVal + d.volume_effect;
+      const end2 = end1 + d.price_effect;
+      const end3 = end2 + d.residual;
+      charts.decomp = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Rev 2024', 'Volume effect', 'Price effect', 'Residual', 'Rev 2025'],
+          datasets: [{
+            label: 'Decomposition',
+            data: [
+              [0, startVal],
+              [Math.min(startVal, end1), Math.max(startVal, end1)],
+              [Math.min(end1, end2), Math.max(end1, end2)],
+              [Math.min(end2, end3), Math.max(end2, end3)],
+              [0, end3],
+            ],
+            backgroundColor: [
+              'rgba(255,255,255,0.2)',
+              d.volume_effect >= 0 ? FIN_COLORS.greenGhost : FIN_COLORS.redGhost,
+              d.price_effect >= 0 ? FIN_COLORS.greenGhost : FIN_COLORS.redGhost,
+              d.residual >= 0 ? FIN_COLORS.yellowGhost : FIN_COLORS.redGhost,
+              FIN_COLORS.greenSoft,
+            ],
+            borderColor: [
+              'rgba(255,255,255,0.4)',
+              d.volume_effect >= 0 ? FIN_COLORS.green : FIN_COLORS.red,
+              d.price_effect >= 0 ? FIN_COLORS.green : FIN_COLORS.red,
+              d.residual >= 0 ? FIN_COLORS.yellow : FIN_COLORS.red,
+              FIN_COLORS.green,
+            ],
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => {
+              const labels = ['Starting revenue', 'Volume effect', 'Price effect', 'Residual (cross)', 'Ending revenue'];
+              const values = [k.revenue_2024, d.volume_effect, d.price_effect, d.residual, k.revenue_2025];
+              return labels[ctx.dataIndex] + ': ' + fmtMoney(values[ctx.dataIndex]);
+            }}}
+          },
+          scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } }
+        }
+      });
+    }
+
+    function renderBar(canvasId, data, keyName, f1, f2) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      if (charts[canvasId]) charts[canvasId].destroy();
+      charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.map(r => String(r[keyName])),
+          datasets: [
+            { label: '2024', data: data.map(r => r[f1]), backgroundColor: 'rgba(255,255,255,0.15)' },
+            { label: '2025', data: data.map(r => r[f2]), backgroundColor: FIN_COLORS.greenGhost },
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+  </script>
+</body>
+</html>

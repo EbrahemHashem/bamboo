@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P&L — Finance — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/nav.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="./_shared.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div><h1>P&amp;L Performance</h1><div class="subtitle">Profit & Loss — revenue, margins, EBITDA</div></div>
+      </div>
+      <div class="finance-tabs" id="financeTabs"></div>
+
+      <div class="filter-bar-fin fade-up fade-up-1">
+        <label>Month</label><select id="fMonth"><option value="all">All</option></select>
+        <label>Region</label><select id="fRegion"><option value="all">All</option></select>
+        <label>Product</label><select id="fProduct"><option value="all">All</option></select>
+      </div>
+
+      <div id="finWarnings"></div>
+      <div id="content"><div style="text-align:center; padding:40px; color: var(--text-muted);">Loading…</div></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="../../js/config.js"></script>
+  <script src="../../js/nav.js"></script>
+  <script src="./_shared.js"></script>
+  <script>
+    let charts = {};
+    let lastData = null;
+    let scenario = { marketing: 0, payroll: 0, technology: 0, logistics: 0, admin: 0 };
+
+    (async () => {
+      await MC.init();
+      renderNav('finance');
+      initMobileNav();
+      renderFinanceTabs('pnl');
+      themeChart();
+      await reload();
+      document.querySelectorAll('#fMonth, #fRegion, #fProduct').forEach(el => el.addEventListener('change', reload));
+    })();
+
+    async function reload() {
+      const params = { date: g('fMonth'), region: g('fRegion'), product: g('fProduct') };
+      const data = await loadFinance('pnl', params);
+      if (!data || !data.configured) return showEmpty();
+      if (data.present === false) { document.getElementById('content').innerHTML = renderEmpty('P&L', 'pnl.csv'); return; }
+      lastData = data;
+      populateFilters(data.filters);
+      renderWarnings(data.warnings);
+      render(data);
+    }
+
+    function g(id) { const el = document.getElementById(id); return el ? el.value : 'all'; }
+    function showEmpty() {
+      document.getElementById('content').innerHTML = `<div class="fin-empty"><div class="ic">&#128735;</div><div class="title">Geen client workspace</div><div class="desc">Zet <code>clientWorkspacePath</code> in client-config.json</div></div>`;
+    }
+
+    function populateFilters(f) {
+      fillOptions('fMonth', f.months);
+      fillOptions('fRegion', f.regions);
+      fillOptions('fProduct', f.products);
+    }
+    function fillOptions(id, values) {
+      const el = document.getElementById(id);
+      const current = el.value;
+      const existing = new Set(Array.from(el.options).map(o => o.value));
+      values.forEach(v => { if (!existing.has(String(v))) { const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o); }});
+      if (Array.from(el.options).some(o => o.value === current)) el.value = current;
+    }
+
+    function render(data) {
+      const k = data.kpis;
+      const html = `
+        <div class="kpi-grid fade-up">
+          ${kpiCard('Revenue', fmtMoney(k.revenue), k.gross_margin + '% gross margin')}
+          ${kpiCard('COGS', fmtMoney(k.cogs))}
+          ${kpiCard('Gross Profit', fmtMoney(k.gross_profit), '', true)}
+          ${kpiCard('Total OPEX', fmtMoney(k.total_opex))}
+          ${kpiCard('EBITDA', fmtMoney(k.ebitda), k.ebitda_margin + '% margin', true)}
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Profitability trend <span class="sub">Revenue · Gross Profit · EBITDA</span></div>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Product profitability <span class="sub">Revenue × Gross margin</span></div>
+            <div class="chart-wrap"><canvas id="productChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">OPEX breakdown</div>
+            <div class="chart-wrap"><canvas id="opexChart"></canvas></div>
+          </div>
+          <div class="scenario-card">
+            <div class="scenario-title">Scenario — OPEX impact op EBITDA</div>
+            ${['marketing','payroll','technology','logistics','admin'].map(c => `
+              <div class="scenario-row">
+                <label>${c}</label>
+                <input type="range" min="-50" max="50" value="0" data-cat="${c}" />
+                <div class="value" id="sc-${c}">+0%</div>
+              </div>
+            `).join('')}
+            <div class="scenario-output" id="scenarioOut">Adjusted EBITDA: <strong>${fmtMoney(k.ebitda)}</strong> <span style="opacity:0.5;">(${k.ebitda_margin}% margin)</span></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
+      renderTrend(data.trend);
+      renderProduct(data.products);
+      renderOpex(data.opexByCat);
+      document.querySelectorAll('.scenario-row input').forEach(el => el.addEventListener('input', updateScenario));
+    }
+
+    function renderTrend(trend) {
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      if (charts.trend) charts.trend.destroy();
+      charts.trend = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: trend.map(t => t.date),
+          datasets: [
+            { label: 'Revenue', data: trend.map(t => t.revenue), borderColor: FIN_COLORS.green, backgroundColor: FIN_COLORS.greenDim, tension: 0.3, fill: true },
+            { label: 'Gross Profit', data: trend.map(t => t.gross_profit), borderColor: FIN_COLORS.blue, backgroundColor: FIN_COLORS.blueGhost, tension: 0.3 },
+            { label: 'EBITDA', data: trend.map(t => t.ebitda), borderColor: FIN_COLORS.yellow, backgroundColor: FIN_COLORS.yellowGhost, tension: 0.3 },
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+
+    function renderProduct(products) {
+      const ctx = document.getElementById('productChart').getContext('2d');
+      if (charts.product) charts.product.destroy();
+      charts.product = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: products.map(p => 'Product ' + p.product),
+          datasets: [
+            { label: 'Revenue', data: products.map(p => p.revenue), backgroundColor: FIN_COLORS.greenGhost, borderColor: FIN_COLORS.green, borderWidth: 1 },
+            { label: 'Gross Profit', data: products.map(p => p.gross_profit), backgroundColor: FIN_COLORS.blueGhost, borderColor: FIN_COLORS.blue, borderWidth: 1 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } },
+          plugins: { tooltip: { callbacks: { footer: (items) => { const p = products[items[0].dataIndex]; return 'Margin: ' + p.gross_margin + '%'; }}}}
+        }
+      });
+    }
+
+    function renderOpex(byCat) {
+      const ctx = document.getElementById('opexChart').getContext('2d');
+      if (charts.opex) charts.opex.destroy();
+      const cats = Object.keys(byCat);
+      charts.opex = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: cats.map(c => c.charAt(0).toUpperCase() + c.slice(1)),
+          datasets: [{
+            data: cats.map(c => byCat[c]),
+            backgroundColor: [FIN_COLORS.green, FIN_COLORS.blue, FIN_COLORS.yellow, 'rgba(180,100,255,0.6)', 'rgba(0,200,200,0.6)'],
+            borderColor: 'var(--bg)', borderWidth: 2,
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+      });
+    }
+
+    function updateScenario(e) {
+      const cat = e.target.dataset.cat;
+      scenario[cat] = +e.target.value;
+      document.getElementById('sc-' + cat).textContent = (scenario[cat] >= 0 ? '+' : '') + scenario[cat] + '%';
+      if (!lastData) return;
+      const k = lastData.kpis;
+      const byCat = lastData.opexByCat;
+      let adjusted = 0;
+      Object.keys(byCat).forEach(c => { adjusted += byCat[c] * (1 + (scenario[c] || 0) / 100); });
+      const newOpex = adjusted;
+      const newEbitda = k.gross_profit - newOpex;
+      const newMargin = k.revenue ? (newEbitda / k.revenue) * 100 : 0;
+      const delta = newEbitda - k.ebitda;
+      document.getElementById('scenarioOut').innerHTML = `Adjusted EBITDA: <strong>${fmtMoney(newEbitda)}</strong> <span style="opacity:0.7; color:${delta>=0?'var(--accent)':'#ff8080'};">(${delta>=0?'+':''}${fmtMoney(delta)} / ${newMargin.toFixed(1)}% margin)</span>`;
+    }
+  </script>
+</body>
+</html>

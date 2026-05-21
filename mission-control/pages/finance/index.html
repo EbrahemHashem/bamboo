@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finance — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/nav.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="./_shared.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Finance</h1>
+          <div class="subtitle" id="subtitle">Loading…</div>
+        </div>
+      </div>
+
+      <div class="finance-tabs" id="financeTabs"></div>
+
+      <div id="content" class="fade-up fade-up-1">
+        <div style="text-align:center; padding: 60px; color: var(--text-muted);">Loading…</div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Mapping modal -->
+  <div class="map-modal-backdrop" id="mapModal" onclick="if(event.target===this) closeMapModal()">
+    <div class="map-modal">
+      <div class="head"><h3 id="mapTitle">Map columns</h3><button class="btn btn-ghost btn-sm" onclick="closeMapModal()">&times;</button></div>
+      <div class="body">
+        <p style="color:var(--text-muted); font-size:12px; margin: 0 0 12px;">Link source columns aan het target schema. Niet-gemapte kolommen blijven zoals ze zijn (als de header al precies klopt, hoef je niets te doen).</p>
+        <div id="mapRows"></div>
+      </div>
+      <div class="foot">
+        <button class="btn btn-ghost btn-sm" onclick="closeMapModal()">Annuleer</button>
+        <button class="btn btn-primary btn-sm" onclick="saveMapping()">Save mapping</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../js/config.js"></script>
+  <script src="../../js/nav.js"></script>
+  <script src="./_shared.js"></script>
+  <script>
+    const DASHBOARDS = [
+      { id: 'pnl',        name: 'P&L Performance',      desc: 'Winst per product, brutomarge, EBITDA, watervaldiagram',  icon: '&#128202;', href: './pnl.html' },
+      { id: 'revenue',    name: 'Revenue YoY',          desc: 'Volume- vs prijs-effect, jaar-op-jaar decompositie',      icon: '&#128200;', href: './revenue.html' },
+      { id: 'costcenter', name: 'Cost Center',          desc: 'Afdeling × categorie variantie + GL drill-down',          icon: '&#128181;', href: './costcenter.html' },
+      { id: 'pipeline',   name: 'Sales Pipeline',       desc: 'Fase-gewogen forecast, funnel, rep prestaties',           icon: '&#127919;', href: './pipeline.html' },
+      { id: 'cashflow',   name: 'Cashflow',             desc: 'Liquiditeit, AR aging, 6-maand forecast, scenarios',      icon: '&#128176;', href: './cashflow.html' },
+    ];
+
+    let LAST_STATUS = null;
+    let UPLOAD_HEADERS = null;  // columns van laatst geüploade file
+    let MAP_TARGET_DASHBOARD = null;
+
+    (async () => {
+      await MC.init();
+      renderNav('finance');
+      initMobileNav();
+      renderFinanceTabs('index');
+      await reload();
+    })();
+
+    async function reload() {
+      const status = await loadFinanceStatus();
+      LAST_STATUS = status;
+      render(status);
+    }
+
+    function render(status) {
+      const content = document.getElementById('content');
+      const subtitle = document.getElementById('subtitle');
+
+      if (!status || !status.configured) {
+        subtitle.textContent = 'Geen client workspace';
+        content.innerHTML = `<div class="fin-empty">
+          <div class="ic">&#128735;</div>
+          <div class="title">Geen <code>clientWorkspacePath</code> geconfigureerd</div>
+          <div class="desc">Zet in <code>client-config.json</code> het veld <code>clientWorkspacePath</code> naar de folder van je client build (bv. <code>~/projects/dev-workspace/clients/paw-parent</code>). Plaats vervolgens CSVs in <code>{clientWorkspacePath}/finance/</code>.</div>
+        </div>`;
+        return;
+      }
+
+      subtitle.textContent = status.financeDir || 'Finance datasets';
+
+      const datasets = status.datasets || {};
+      const present = Object.values(datasets).filter(d => d && d.present).length;
+      const total = DASHBOARDS.length;
+
+      let html = '';
+
+      // Upload zone
+      html += `
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" multiple />
+          <div class="up-icon">&#128228;</div>
+          <div class="up-title">Drop Excel / CSV files hier</div>
+          <div class="up-sub">Of klik om te kiezen &middot; .xlsx, .xls of .csv &middot; filename moet exact zijn: <code>pnl.csv</code>, <code>revenue.xlsx</code>, etc — of upload één <code>finance.xlsx</code> workbook met alle sheets</div>
+        </div>
+        <div id="uploadStatus"></div>
+      `;
+
+      html += `<div style="display:flex; align-items:center; gap:12px; font-family:var(--font-mono); font-size:11px; color:var(--text-muted); margin-bottom: 16px; letter-spacing:1px;">
+        <span>${present} / ${total} datasets present</span>
+        ${status.mappingPresent ? '<span style="color:var(--accent);">&#10003; mapping.json</span>' : ''}
+      </div>`;
+
+      html += '<div class="overview-grid">';
+      for (const d of DASHBOARDS) {
+        const ds = datasets[d.id] || {};
+        const hasData = ds.present;
+        const srcLabel = ds.source === 'xlsx' ? 'xlsx' : ds.source === 'workbook' ? ('workbook: ' + (ds.sheet || '')) : 'csv';
+        html += `<div class="overview-card ${hasData ? '' : 'missing'}">
+          <a href="${d.href}" style="text-decoration:none; color:inherit; display:flex; flex-direction:column; gap:10px;">
+            <div class="oc-head">
+              <div class="oc-icon">${d.icon}</div>
+              <div style="flex:1;">
+                <div class="oc-name">${d.name}</div>
+                <span class="oc-status ${hasData ? 'ok' : 'missing'}">${hasData ? (ds.rows ? ds.rows + ' rows' : srcLabel) : 'missing'}</span>
+              </div>
+            </div>
+            <div class="oc-desc">${d.desc}</div>
+          </a>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top: auto;">
+            <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted); letter-spacing:0.5px;">${d.id}.csv / .xlsx</span>
+            ${hasData ? `<button class="btn btn-ghost btn-sm" style="font-size:9px; padding:3px 8px;" onclick="openMap('${d.id}')">Map columns</button>` : ''}
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+
+      content.innerHTML = html;
+      setupUpload();
+    }
+
+    function setupUpload() {
+      const zone = document.getElementById('uploadZone');
+      const input = document.getElementById('fileInput');
+      if (!zone || !input) return;
+      zone.addEventListener('click', (e) => { if (e.target.tagName !== 'INPUT') input.click(); });
+      input.addEventListener('change', (e) => handleFiles(e.target.files));
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault(); zone.classList.remove('dragover');
+        if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+      });
+    }
+
+    async function handleFiles(files) {
+      const statusEl = document.getElementById('uploadStatus');
+      for (const f of files) {
+        statusEl.innerHTML += `<div class="upload-status">&uarr; Uploading ${f.name}…</div>`;
+        try {
+          const content = await readFileAsBase64(f);
+          const r = await Bridge.fetch('/api/finance/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: f.name, contentBase64: content }),
+          });
+          if (r && r.ok) {
+            statusEl.innerHTML += `<div class="upload-status"><span class="ok">&#10003;</span> ${r.saved} (${formatBytes(r.size)})${r.sheets ? ` — sheets: ${r.sheets.join(', ')}` : ''}</div>`;
+          } else {
+            statusEl.innerHTML += `<div class="upload-status"><span class="err">&#10007;</span> ${f.name}: ${(r && r.error) || 'failed'}</div>`;
+          }
+        } catch (e) {
+          statusEl.innerHTML += `<div class="upload-status"><span class="err">&#10007;</span> ${f.name}: ${e.message}</div>`;
+        }
+      }
+      await reload();
+    }
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result; // data:<mime>;base64,<data>
+          const b64 = String(result).split(',')[1] || '';
+          resolve(b64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function formatBytes(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b/1024).toFixed(1) + ' KB'; return (b/1048576).toFixed(1) + ' MB'; }
+
+    // Column mapping modal
+    const TARGET_SCHEMAS = {
+      pnl: ['date','product','region','revenue','cogs','gross_profit','gross_margin','marketing','payroll','technology','logistics','admin','total_opex','ebitda','ebitda_margin'],
+      revenue: ['month','region','product','channel','units_2024','aov_2024','revenue_2024','units_2025','aov_2025','revenue_2025'],
+      costcenter: ['month','department','category','gl_account','gl_description','cost_2024','cost_2025','budget_2025'],
+      pipeline: ['month','region','rep','stage','deal_count','avg_deal_size','total_value'],
+      cashflow: ['month','operating_cf','investing_cf','financing_cf','free_cf','cash_balance','ar_0_30','ar_30_60','ar_60_90','ar_90_plus','ap_total','inventory'],
+    };
+
+    async function openMap(dashboardId) {
+      MAP_TARGET_DASHBOARD = dashboardId;
+      const dash = DASHBOARDS.find(d => d.id === dashboardId);
+      document.getElementById('mapTitle').textContent = 'Map columns — ' + dash.name;
+      // Fetch one row of actual data to get source headers
+      const data = await Bridge.fetch('/api/finance/' + dashboardId);
+      const sourceHeaders = (data && data.headers) || [];
+      const targets = TARGET_SCHEMAS[dashboardId] || [];
+      // Current mapping
+      let currentMapping = {};
+      try {
+        const res = await fetch(MC.bridgeUrl + '/api/finance/mapping?type=' + dashboardId);
+        if (res.ok) currentMapping = (await res.json()).mapping || {};
+      } catch {}
+
+      const rows = sourceHeaders.map(h => {
+        const current = currentMapping[h] || (targets.includes(h) ? h : '');
+        return `<div class="map-row">
+          <div class="src">${h}</div>
+          <div class="arrow">&rarr;</div>
+          <select data-src="${h.replace(/"/g,'&quot;')}">
+            <option value="">— (keep as-is)</option>
+            ${targets.map(t => `<option value="${t}" ${current === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>`;
+      }).join('');
+      document.getElementById('mapRows').innerHTML = rows || '<div style="color:var(--text-muted);">No columns detected</div>';
+      document.getElementById('mapModal').classList.add('active');
+    }
+
+    function closeMapModal() { document.getElementById('mapModal').classList.remove('active'); }
+
+    async function saveMapping() {
+      const rows = document.querySelectorAll('#mapRows select');
+      const mapping = {};
+      rows.forEach(s => { if (s.value) mapping[s.dataset.src] = s.value; });
+      const r = await Bridge.fetch('/api/finance/mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: MAP_TARGET_DASHBOARD, mapping }),
+      });
+      if (r && r.ok) {
+        closeMapModal();
+        showToast('Mapping saved voor ' + MAP_TARGET_DASHBOARD);
+        await reload();
+      } else {
+        alert('Save failed: ' + ((r && r.error) || 'unknown'));
+      }
+    }
+  </script>
+</body>
+</html>

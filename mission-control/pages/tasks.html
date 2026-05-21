@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .kanban-container {
+      overflow-x: auto;
+      padding-bottom: 16px;
+    }
+
+    .kanban {
+      min-width: 960px;
+    }
+
+    .kanban-col {
+      min-width: 220px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .kanban-col.drag-over {
+      border-color: var(--accent);
+      background: rgba(0,255,136,0.02);
+    }
+
+    .add-task-btn {
+      width: 100%;
+      padding: 8px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-top: 8px;
+    }
+
+    .add-task-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .task-stats {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .task-stats span {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Priority dots */
+    .priority-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .priority-high { background: #ff4444; box-shadow: 0 0 6px rgba(255,68,68,0.5); }
+    .priority-medium { background: #ffbb33; box-shadow: 0 0 6px rgba(255,187,51,0.5); }
+    .priority-low { background: #00ff88; box-shadow: 0 0 6px rgba(0,255,136,0.5); }
+    .priority-none { background: #556b62; }
+
+    /* Task modal */
+    .task-modal-field {
+      margin-bottom: 16px;
+    }
+    .task-modal-field label {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .priority-picker {
+      display: flex;
+      gap: 8px;
+    }
+    .priority-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-sub);
+      cursor: pointer;
+      background: none;
+      transition: all 0.15s;
+    }
+    .priority-option:hover,
+    .priority-option.selected {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .kanban-item {
+      touch-action: none;
+    }
+
+    @media (max-width: 600px) {
+      .kanban { min-width: auto; flex-direction: column; }
+      .kanban-col { min-width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Data stored locally</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Tasks</h1>
+          <div class="subtitle" id="taskSubtitle">Kanban board — drag to reorder</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddModal('backlog')">+ Add Task</button>
+      </div>
+
+      <div class="task-stats fade-up fade-up-1" id="taskStats"></div>
+
+      <div class="kanban-container fade-up fade-up-2">
+        <div class="kanban" id="kanbanBoard">
+          <div class="kanban-col" data-col="backlog"
+            ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, 'backlog')">
+            <div class="kanban-col-header">
+              <div class="dot dot-gray"></div>
+              <div class="kanban-col-title">Backlog</div>
+              <div class="kanban-col-count" data-count="backlog">0</div>
+            </div>
+            <div class="kanban-items" data-items="backlog"></div>
+            <button class="add-task-btn" onclick="openAddModal('backlog')">+ Add</button>
+          </div>
+
+          <div class="kanban-col" data-col="progress"
+            ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, 'progress')">
+            <div class="kanban-col-header">
+              <div class="dot dot-yellow"></div>
+              <div class="kanban-col-title">In Progress</div>
+              <div class="kanban-col-count" data-count="progress">0</div>
+            </div>
+            <div class="kanban-items" data-items="progress"></div>
+          </div>
+
+          <div class="kanban-col" data-col="review"
+            ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, 'review')">
+            <div class="kanban-col-header">
+              <div class="dot" style="background:var(--info);box-shadow:0 0 6px rgba(0,170,255,0.5);"></div>
+              <div class="kanban-col-title">Review</div>
+              <div class="kanban-col-count" data-count="review">0</div>
+            </div>
+            <div class="kanban-items" data-items="review"></div>
+          </div>
+
+          <div class="kanban-col" data-col="done"
+            ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, 'done')">
+            <div class="kanban-col-header">
+              <div class="dot dot-green"></div>
+              <div class="kanban-col-title">Done</div>
+              <div class="kanban-col-count" data-count="done">0</div>
+            </div>
+            <div class="kanban-items" data-items="done"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Task Modal -->
+  <div class="modal-overlay" id="addTaskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>New Task</h3>
+        <button class="modal-close" onclick="closeAddModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="task-modal-field">
+          <label class="label">Title</label>
+          <input class="input" id="taskTitle" placeholder="Task title...">
+        </div>
+        <div class="task-modal-field">
+          <label class="label">Description</label>
+          <input class="input" id="taskDesc" placeholder="Optional description...">
+        </div>
+        <div class="task-modal-field">
+          <label class="label">Priority</label>
+          <div class="priority-picker" id="priorityPicker">
+            <button class="priority-option" data-priority="high" onclick="selectPriority(this)">
+              <span class="priority-dot priority-high"></span> High
+            </button>
+            <button class="priority-option selected" data-priority="medium" onclick="selectPriority(this)">
+              <span class="priority-dot priority-medium"></span> Medium
+            </button>
+            <button class="priority-option" data-priority="low" onclick="selectPriority(this)">
+              <span class="priority-dot priority-low"></span> Low
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" onclick="closeAddModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="createTask()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    const STORAGE_KEY = 'mc_tasks';
+    let tasks = [];
+    let addColumn = 'backlog';
+    let selectedPriority = 'medium';
+
+    (async () => {
+      await MC.init();
+      renderNav('tasks');
+      initMobileNav();
+      loadTasks();
+    })();
+
+    function loadTasks() {
+      try {
+        tasks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch {
+        tasks = [];
+      }
+      renderBoard();
+    }
+
+    function saveTasks() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      renderBoard();
+    }
+
+    function renderBoard() {
+      ['backlog', 'progress', 'review', 'done'].forEach(col => {
+        const container = document.querySelector(`[data-items="${col}"]`);
+        const count = document.querySelector(`[data-count="${col}"]`);
+        const colTasks = tasks.filter(t => t.column === col);
+
+        count.textContent = colTasks.length;
+        container.innerHTML = colTasks.map(t => {
+          const priClass = t.priority ? `priority-${t.priority}` : 'priority-none';
+          const priLabel = t.priority ? t.priority.charAt(0).toUpperCase() + t.priority.slice(1) : '';
+          return `
+          <div class="kanban-item" draggable="true"
+            data-id="${t.id}"
+            ondragstart="onDragStart(event, '${t.id}')"
+            ondragend="onDragEnd(event)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span class="priority-dot ${priClass}"></span>
+              <div class="kanban-item-title" style="margin-bottom:0;">${escapeHtml(t.title)}</div>
+            </div>
+            ${t.desc ? `<div class="kanban-item-desc">${escapeHtml(t.desc)}</div>` : ''}
+            <div class="kanban-item-tags">
+              ${priLabel ? `<span class="kanban-tag">${priLabel}</span>` : ''}
+              <span class="kanban-tag" style="margin-left:auto;cursor:pointer;" onclick="event.stopPropagation();deleteTask('${t.id}')">&#10005;</span>
+            </div>
+          </div>
+        `}).join('');
+      });
+
+      // Stats
+      const total = tasks.length;
+      const done = tasks.filter(t => t.column === 'done').length;
+      const inProg = tasks.filter(t => t.column === 'progress').length;
+      document.getElementById('taskStats').innerHTML = `
+        <span>${total}</span> Total &nbsp;|&nbsp;
+        <span>${inProg}</span> In progress &nbsp;|&nbsp;
+        <span>${done}</span> Done &nbsp;|&nbsp;
+        ${total > 0 ? Math.round(done / total * 100) : 0}% Completion
+      `;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ── Add Task Modal ──
+    function openAddModal(col) {
+      addColumn = col;
+      selectedPriority = 'medium';
+      document.getElementById('taskTitle').value = '';
+      document.getElementById('taskDesc').value = '';
+      document.querySelectorAll('.priority-option').forEach(b => b.classList.remove('selected'));
+      document.querySelector('[data-priority="medium"]').classList.add('selected');
+      document.getElementById('addTaskModal').classList.add('visible');
+      setTimeout(() => document.getElementById('taskTitle').focus(), 100);
+    }
+
+    function closeAddModal() {
+      document.getElementById('addTaskModal').classList.remove('visible');
+    }
+
+    function selectPriority(btn) {
+      document.querySelectorAll('.priority-option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedPriority = btn.dataset.priority;
+    }
+
+    function createTask() {
+      const title = document.getElementById('taskTitle').value.trim();
+      if (!title) {
+        showToast('Enter a task title');
+        return;
+      }
+
+      tasks.push({
+        id: Date.now().toString(),
+        title,
+        desc: document.getElementById('taskDesc').value.trim(),
+        column: addColumn,
+        priority: selectedPriority,
+        created: new Date().toISOString()
+      });
+
+      closeAddModal();
+      saveTasks();
+      showToast('Task created');
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveTasks();
+    }
+
+    // ── Drag & Drop ──
+    let dragId = null;
+
+    function onDragStart(e, id) {
+      dragId = id;
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      // Store the ID for cross-browser compat
+      e.dataTransfer.setData('text/plain', id);
+    }
+
+    function onDragEnd(e) {
+      e.target.classList.remove('dragging');
+      document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      const col = e.currentTarget;
+      col.classList.add('drag-over');
+    }
+
+    function onDragLeave(e) {
+      // Only remove if we're leaving the column itself, not entering a child
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.classList.remove('drag-over');
+      }
+    }
+
+    function onDrop(e, col) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const id = dragId || e.dataTransfer.getData('text/plain');
+      if (!id) return;
+
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        task.column = col;
+        saveTasks();
+      }
+      dragId = null;
+    }
+
+    // Handle Enter key in modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && document.getElementById('addTaskModal').classList.contains('visible')) {
+        createTask();
+      }
+      if (e.key === 'Escape') {
+        closeAddModal();
+      }
+    });
+  </script>
+</body>
+</html>

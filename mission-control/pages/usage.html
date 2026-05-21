@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Usage — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Usage</h1>
+          <div class="subtitle">Token usage, API calls, and resource consumption</div>
+        </div>
+      </div>
+      <div class="fade-up fade-up-1">
+        
+<div class="grid-3" style="margin-bottom:24px;">
+  <div class="stat-card">
+    <div class="stat-label">Tokens Today</div>
+    <div class="stat-value accent">0</div>
+    <div class="stat-sub">input + output</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">API Calls</div>
+    <div class="stat-value">0</div>
+    <div class="stat-sub">last 24h</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Sessions</div>
+    <div class="stat-value">0</div>
+    <div class="stat-sub">active today</div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-head">
+    <div class="section-title">Usage by Agent</div>
+  </div>
+  <div class="card">
+    <div class="empty-state">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">Usage tracking coming soon</div>
+      <div class="empty-desc">Token and API usage will be tracked here per agent and per day</div>
+    </div>
+  </div>
+</div>
+      </div>
+    </main>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('usage');
+      initMobileNav();
+    })();
+  </script>
+</body>
+</html>

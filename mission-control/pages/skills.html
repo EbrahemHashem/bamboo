@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .skills-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .skills-filter {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-sub);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-ghost);
+    }
+
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .skill-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+
+    .skill-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: var(--glow-sm);
+    }
+
+    .skill-name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .skill-desc {
+      font-size: 12px;
+      color: var(--text-sub);
+      line-height: 1.4;
+      margin-bottom: 8px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .skill-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    @media (max-width: 900px) {
+      .skills-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Skills</h1>
+          <div class="subtitle" id="skillsSubtitle">Loading skills...</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <input class="input" id="skillSearch" placeholder="Search skills..." style="width:200px;font-size:13px;padding:7px 12px;"
+            oninput="filterSkills()">
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="skills-stats fade-up fade-up-1">
+        <div class="stat-card">
+          <div class="stat-label">Total</div>
+          <div class="stat-value accent" id="skillTotal">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Ready</div>
+          <div class="stat-value" id="skillReady" style="color:var(--success)">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Categories</div>
+          <div class="stat-value" id="skillCats">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Source</div>
+          <div class="stat-value" style="font-size:14px;" id="skillSource">—</div>
+        </div>
+      </div>
+
+      <!-- Filter -->
+      <div class="skills-filter fade-up fade-up-2" id="filterBar">
+        <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+      </div>
+
+      <!-- Grid -->
+      <div class="skills-grid fade-up fade-up-3" id="skillsGrid">
+        <div class="empty-state" style="grid-column:1/-1;">
+          <div class="empty-icon">&#9881;</div>
+          <div class="empty-title">Loading skills...</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let allSkills = [];
+    let activeFilter = 'all';
+
+    (async () => {
+      await MC.init();
+      renderNav('skills');
+      initMobileNav();
+      await loadSkills();
+    })();
+
+    async function loadSkills() {
+      const data = await Bridge.fetch('/api/skills/list');
+
+      if (data && data.skills) {
+        allSkills = data.skills;
+      } else {
+        allSkills = [];
+      }
+
+      // Update stats
+      document.getElementById('skillTotal').textContent = allSkills.length;
+      document.getElementById('skillReady').textContent = allSkills.length;
+      document.getElementById('skillsSubtitle').textContent = `${allSkills.length} skills installed`;
+      document.getElementById('skillSource').textContent = data?._cached ? 'Cached' : 'Live';
+
+      // Build category filters
+      const cats = [...new Set(allSkills.map(s => s.category || 'other'))];
+      document.getElementById('skillCats').textContent = cats.length;
+
+      const filterBar = document.getElementById('filterBar');
+      cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn';
+        btn.textContent = cat;
+        btn.onclick = function() { setFilter(cat, this); };
+        filterBar.appendChild(btn);
+      });
+
+      renderSkills(allSkills);
+    }
+
+    function renderSkills(skills) {
+      const grid = document.getElementById('skillsGrid');
+
+      if (skills.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column:1/-1;">
+            <div class="empty-icon">&#128269;</div>
+            <div class="empty-title">No skills found</div>
+            <div class="empty-desc">Try a different search or filter</div>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = skills.map(s => `
+        <div class="skill-card" onclick="runSkill('${s.name}')">
+          <div class="skill-name">/${s.name}</div>
+          <div class="skill-desc">${s.description || 'No description'}</div>
+          <div class="skill-meta">
+            <span class="badge badge-green">${s.category || 'skill'}</span>
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();runSkill('${s.name}')">Run</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function setFilter(cat, btn) {
+      activeFilter = cat;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterSkills();
+    }
+
+    function filterSkills() {
+      const search = document.getElementById('skillSearch').value.toLowerCase();
+      let filtered = allSkills;
+
+      if (activeFilter !== 'all') {
+        filtered = filtered.filter(s => (s.category || 'other') === activeFilter);
+      }
+
+      if (search) {
+        filtered = filtered.filter(s =>
+          s.name.toLowerCase().includes(search) ||
+          (s.description || '').toLowerCase().includes(search)
+        );
+      }
+
+      renderSkills(filtered);
+    }
+
+    function runSkill(name) {
+      window.location.href = `chat.html`;
+    }
+  </script>
+</body>
+</html>

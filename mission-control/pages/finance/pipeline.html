@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline — Finance — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/nav.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="./_shared.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div><h1>Sales Pipeline</h1><div class="subtitle">Fase-gewogen forecast, funnel, rep prestaties</div></div>
+      </div>
+      <div class="finance-tabs" id="financeTabs"></div>
+
+      <div class="filter-bar-fin fade-up fade-up-1">
+        <label>Month</label><select id="fMonth"><option value="all">All</option></select>
+        <label>Region</label><select id="fRegion"><option value="all">All</option></select>
+        <label>Rep</label><select id="fRep"><option value="all">All</option></select>
+      </div>
+
+      <div id="finWarnings"></div>
+      <div id="content"><div style="text-align:center; padding:40px; color: var(--text-muted);">Loading…</div></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="../../js/config.js"></script>
+  <script src="../../js/nav.js"></script>
+  <script src="./_shared.js"></script>
+  <script>
+    let charts = {};
+    let probs = { p_mql: 0.05, p_sql: 0.20, p_opp: 0.50, p_neg: 0.70 };
+
+    (async () => {
+      await MC.init();
+      renderNav('finance');
+      initMobileNav();
+      renderFinanceTabs('pipeline');
+      themeChart();
+      await reload();
+      document.querySelectorAll('#fMonth, #fRegion, #fRep').forEach(el => el.addEventListener('change', reload));
+    })();
+
+    async function reload() {
+      const params = { month: g('fMonth'), region: g('fRegion'), rep: g('fRep'), ...probs };
+      const data = await loadFinance('pipeline', params);
+      if (!data || !data.configured) return showEmpty();
+      if (data.present === false) { document.getElementById('content').innerHTML = renderEmpty('Pipeline', 'pipeline.csv'); return; }
+      populateFilters(data.filters);
+      renderWarnings(data.warnings);
+      render(data);
+    }
+    function g(id) { return document.getElementById(id).value; }
+    function showEmpty() { document.getElementById('content').innerHTML = `<div class="fin-empty"><div class="ic">&#128735;</div><div class="title">Geen client workspace</div></div>`; }
+
+    function populateFilters(f) {
+      fillOptions('fMonth', f.months); fillOptions('fRegion', f.regions); fillOptions('fRep', f.reps);
+    }
+    function fillOptions(id, values) {
+      const el = document.getElementById(id); const current = el.value;
+      const existing = new Set(Array.from(el.options).map(o => o.value));
+      values.forEach(v => { if (!existing.has(String(v))) { const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o); }});
+      if (Array.from(el.options).some(o => o.value === current)) el.value = current;
+    }
+
+    function render(data) {
+      const k = data.kpis;
+      const conv = data.conversion;
+      const html = `
+        <div class="kpi-grid">
+          ${kpiCard('Total Pipeline', fmtMoney(k.total_pipeline))}
+          ${kpiCard('Forecasted Revenue', fmtMoney(k.forecasted_revenue), 'probability-weighted', true)}
+          ${kpiCard('Active Deals', fmtCount(k.active_deals))}
+          ${kpiCard('Win Rate', k.win_rate_pct + '%', 'opp → closed')}
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Pipeline funnel <span class="sub">Total value per stage</span></div>
+            <div class="chart-wrap"><canvas id="funnelChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Weighted forecast <span class="sub">Value × probability</span></div>
+            <div class="chart-wrap"><canvas id="weightedChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Conversion rates</div>
+            <div style="display:flex; flex-direction:column; gap:10px; padding: 10px 0;">
+              ${Object.entries(conv).map(([k, v]) => `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                  <span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">${k.replace(/_/g, ' ')}</span>
+                  <div style="flex:1; height:8px; background: var(--bg); border-radius:4px; overflow:hidden;">
+                    <div style="width:${Math.min(100, v)}%; height:100%; background: var(--accent);"></div>
+                  </div>
+                  <span style="font-family:var(--font-mono); font-size:12px; color:var(--accent); width:50px; text-align:right;">${v}%</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="scenario-card">
+            <div class="scenario-title">Stage probabilities</div>
+            ${[['p_mql','MQL',5],['p_sql','SQL',20],['p_opp','Opportunity',50],['p_neg','Negotiation',70]].map(([id, lbl, def]) => `
+              <div class="scenario-row">
+                <label>${lbl}</label>
+                <input type="range" min="0" max="100" value="${probs[id]*100}" id="${id}Slider"/>
+                <div class="value" id="${id}Val">${probs[id]*100}%</div>
+              </div>
+            `).join('')}
+            <div class="scenario-output">Pas de waarschijnlijkheden aan op basis van je eigen conversie-historie</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Rep performance</div>
+          <table class="fin-table">
+            <thead><tr><th>Rep</th><th class="num">Deals</th><th class="num">Pipeline</th><th class="num">Win rate</th></tr></thead>
+            <tbody>
+              ${data.reps.map(r => `<tr>
+                <td>${r.rep}</td>
+                <td class="num">${fmtCount(r.deal_count)}</td>
+                <td class="num">${fmtMoney(r.total_value)}</td>
+                <td class="num ${r.win_rate >= 50 ? 'pos' : ''}">${r.win_rate}%</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
+      renderFunnel(data.stages);
+      renderWeighted(data.stages);
+
+      ['p_mql','p_sql','p_opp','p_neg'].forEach(id => {
+        const s = document.getElementById(id + 'Slider');
+        s.addEventListener('input', () => { probs[id] = +s.value / 100; document.getElementById(id + 'Val').textContent = s.value + '%'; });
+        s.addEventListener('change', reload);
+      });
+    }
+
+    function renderFunnel(stages) {
+      const ctx = document.getElementById('funnelChart').getContext('2d');
+      if (charts.funnel) charts.funnel.destroy();
+      const colors = [FIN_COLORS.greenDim, FIN_COLORS.blueGhost, FIN_COLORS.yellowGhost, 'rgba(255,165,0,0.3)', FIN_COLORS.greenGhost];
+      const borders = [FIN_COLORS.greenDim, FIN_COLORS.blue, FIN_COLORS.yellow, '#ffa500', FIN_COLORS.green];
+      charts.funnel = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: stages.map(s => s.stage.toUpperCase()),
+          datasets: [{
+            label: 'Pipeline value',
+            data: stages.map(s => s.total_value),
+            backgroundColor: colors,
+            borderColor: borders,
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: (ctx) => stages[ctx.dataIndex].deal_count + ' deals' } } },
+          scales: { x: { ticks: { callback: v => fmtMoney(v, true) } } }
+        }
+      });
+    }
+
+    function renderWeighted(stages) {
+      const ctx = document.getElementById('weightedChart').getContext('2d');
+      if (charts.weighted) charts.weighted.destroy();
+      charts.weighted = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: stages.map(s => s.stage.toUpperCase()),
+          datasets: [
+            { label: 'Raw value', data: stages.map(s => s.total_value), backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 },
+            { label: 'Weighted (probability)', data: stages.map(s => s.weighted_value), backgroundColor: FIN_COLORS.greenGhost, borderColor: FIN_COLORS.green, borderWidth: 1 },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { tooltip: { callbacks: { afterLabel: (ctx) => (ctx.dataIndex < stages.length ? (stages[ctx.dataIndex].probability * 100) + '% probability' : '') } } },
+          scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+node_modules/
+bridge-server.js
+activity.log
+.mcp-state.json
+client-config.json
+mcp-catalog.json
+skills/
+reports/
+package.json
+package-lock.json
+README.md
+CLIENT-PROFILES.md

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cost Center — Finance — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/nav.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="./_shared.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div><h1>Cost Center</h1><div class="subtitle">Afdeling × categorie variantie + GL drill-down</div></div>
+      </div>
+      <div class="finance-tabs" id="financeTabs"></div>
+
+      <div class="filter-bar-fin fade-up fade-up-1">
+        <label>Month</label><select id="fMonth"><option value="all">All</option></select>
+        <label>Department</label><select id="fDept"><option value="all">All</option></select>
+        <label>Category</label><select id="fCategory"><option value="all">All</option></select>
+        <label>Search</label><input type="text" id="fSearch" placeholder="GL description..." style="background:var(--bg); border:1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--font-mono); font-size: 11px; padding: 5px 10px; min-width: 180px;" />
+      </div>
+
+      <div id="finWarnings"></div>
+      <div id="content"><div style="text-align:center; padding:40px; color: var(--text-muted);">Loading…</div></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="../../js/config.js"></script>
+  <script src="../../js/nav.js"></script>
+  <script src="./_shared.js"></script>
+  <script>
+    let charts = {};
+    let lastData = null;
+
+    (async () => {
+      await MC.init();
+      renderNav('finance');
+      initMobileNav();
+      renderFinanceTabs('costcenter');
+      themeChart();
+      await reload();
+      document.querySelectorAll('#fMonth, #fDept, #fCategory').forEach(el => el.addEventListener('change', reload));
+      document.getElementById('fSearch').addEventListener('input', () => { if (lastData) renderDrill(lastData.drill); });
+    })();
+
+    async function reload() {
+      const params = { month: g('fMonth'), department: g('fDept'), category: g('fCategory') };
+      const data = await loadFinance('costcenter', params);
+      if (!data || !data.configured) return showEmpty();
+      if (data.present === false) { document.getElementById('content').innerHTML = renderEmpty('Cost Center', 'costcenter.csv'); return; }
+      lastData = data;
+      populateFilters(data.filters);
+      renderWarnings(data.warnings);
+      render(data);
+    }
+    function g(id) { return document.getElementById(id).value; }
+    function showEmpty() { document.getElementById('content').innerHTML = `<div class="fin-empty"><div class="ic">&#128735;</div><div class="title">Geen client workspace</div></div>`; }
+
+    function populateFilters(f) {
+      fillOptions('fMonth', f.months); fillOptions('fDept', f.departments); fillOptions('fCategory', f.categories);
+    }
+    function fillOptions(id, values) {
+      const el = document.getElementById(id); const current = el.value;
+      const existing = new Set(Array.from(el.options).map(o => o.value));
+      values.forEach(v => { if (!existing.has(String(v))) { const o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o); }});
+      if (Array.from(el.options).some(o => o.value === current)) el.value = current;
+    }
+
+    function render(data) {
+      const k = data.kpis;
+      const varianceColor = k.variance >= 0 ? '' : 'pos'; // increase in cost = red? keep accent neutral
+      const html = `
+        <div class="kpi-grid">
+          ${kpiCard('Total 2024', fmtMoney(k.cost_2024))}
+          ${kpiCard('Total 2025', fmtMoney(k.cost_2025), '', true)}
+          ${kpiCard('YoY Variance', fmtMoney(k.variance), fmtPct(k.variance_pct), k.variance <= 0)}
+          ${kpiCard('Budget 2025', fmtMoney(k.budget_2025))}
+          ${kpiCard('Budget Variance', fmtMoney(k.budget_variance), k.budget_variance > 0 ? 'OVER' : 'UNDER', k.budget_variance <= 0)}
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Variance per afdeling <span class="sub">2025 vs 2024</span></div>
+            <div class="chart-wrap tall"><canvas id="deptVar"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Kosten per categorie</div>
+            <div class="chart-wrap tall"><canvas id="catChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">GL drill-down <span class="sub" id="drillCount"></span></div>
+          <div style="max-height: 380px; overflow-y: auto;">
+            <table class="fin-table">
+              <thead><tr>
+                <th>Month</th><th>Dept</th><th>Category</th><th>GL</th><th>Description</th>
+                <th class="num">2024</th><th class="num">2025</th><th class="num">Variance</th>
+              </tr></thead>
+              <tbody id="drillBody"></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
+
+      renderDept(data.byDept);
+      renderCategory(data.byCategory);
+      renderDrill(data.drill);
+    }
+
+    function renderDept(byDept) {
+      const ctx = document.getElementById('deptVar').getContext('2d');
+      if (charts.dept) charts.dept.destroy();
+      charts.dept = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: byDept.map(d => d.department),
+          datasets: [
+            { label: '2024', data: byDept.map(d => d.cost_2024), backgroundColor: 'rgba(255,255,255,0.15)' },
+            { label: '2025', data: byDept.map(d => d.cost_2025), backgroundColor: FIN_COLORS.greenGhost, borderColor: FIN_COLORS.green, borderWidth: 1 },
+            { label: 'Budget 2025', data: byDept.map(d => d.budget_2025), backgroundColor: 'transparent', borderColor: FIN_COLORS.yellow, borderWidth: 2, type: 'line', tension: 0 },
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+
+    function renderCategory(byCat) {
+      const ctx = document.getElementById('catChart').getContext('2d');
+      if (charts.cat) charts.cat.destroy();
+      charts.cat = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: byCat.map(c => c.category),
+          datasets: [
+            { label: '2024', data: byCat.map(c => c.cost_2024), backgroundColor: 'rgba(255,255,255,0.15)' },
+            { label: '2025', data: byCat.map(c => c.cost_2025), backgroundColor: FIN_COLORS.blueGhost, borderColor: FIN_COLORS.blue, borderWidth: 1 },
+          ]
+        },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+
+    function renderDrill(rows) {
+      const search = (document.getElementById('fSearch').value || '').toLowerCase();
+      const filtered = search ? rows.filter(r => (r.gl_description + r.gl_account + r.category).toLowerCase().includes(search)) : rows;
+      const sorted = [...filtered].sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
+      document.getElementById('drillCount').textContent = sorted.length + ' lines';
+      const body = document.getElementById('drillBody');
+      body.innerHTML = sorted.slice(0, 200).map(r => `<tr>
+        <td>${r.month}</td>
+        <td>${r.department}</td>
+        <td>${r.category}</td>
+        <td>${r.gl_account}</td>
+        <td>${r.gl_description}</td>
+        <td class="num">${fmtMoney(r.cost_2024)}</td>
+        <td class="num">${fmtMoney(r.cost_2025)}</td>
+        <td class="num ${r.variance > 0 ? 'neg' : 'pos'}">${r.variance >= 0 ? '+' : ''}${fmtMoney(r.variance)}</td>
+      </tr>`).join('');
+    }
+  </script>
+</body>
+</html>

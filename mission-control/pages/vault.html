@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vault — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Vault</h1>
+          <div class="subtitle">Secure credential storage and secrets management</div>
+        </div>
+      </div>
+      <div class="fade-up fade-up-1">
+        
+<div class="section">
+  <div class="card" style="padding:32px;">
+    <div class="empty-state">
+      <div class="empty-icon">🔐</div>
+      <div class="empty-title">Vault</div>
+      <div class="empty-desc">Encrypted credential storage. API keys and secrets are stored securely in ~/.secrets/ and injected at runtime — never exposed in the browser.</div>
+    </div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-head"><div class="section-title">Configured Secrets</div></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Service</th><th>Key Name</th><th>Status</th></tr></thead>
+      <tbody id="vaultTable">
+        <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px;">Vault contents are not exposed to the dashboard for security</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+      </div>
+    </main>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('vault');
+      initMobileNav();
+    })();
+  </script>
+</body>
+</html>

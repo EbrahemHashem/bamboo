@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workspace Files — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Workspace Files</h1>
+          <div class="subtitle">Browse files in the workspace directory</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadFiles()">Refresh</button>
+      </div>
+      <div class="fade-up fade-up-1">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Workspace</div>
+          </div>
+          <div class="card">
+            <div id="fileList" style="font-family:var(--font-mono);font-size:12px;line-height:2;color:var(--text-sub);">
+              <div class="skeleton-item"><div class="skeleton-line" style="width:60%;height:12px;"></div></div>
+              <div class="skeleton-item"><div class="skeleton-line" style="width:45%;height:12px;"></div></div>
+              <div class="skeleton-item"><div class="skeleton-line" style="width:55%;height:12px;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('workspace');
+      initMobileNav();
+      loadFiles();
+    })();
+
+    async function loadFiles() {
+      const data = await Bridge.fetch('/api/files/list');
+      const el = document.getElementById('fileList');
+      if (data && data.files && data.files.length > 0) {
+        el.innerHTML = data.files.map(f => `<div style="padding:4px 8px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--accent-ghost)'" onmouseout="this.style.background='transparent'">&#128196; ${f}</div>`).join('');
+      } else {
+        el.innerHTML = `<div class="empty-state"><div class="empty-icon">&#128193;</div><div class="empty-title">No files loaded</div><div class="empty-desc">Connect bridge to browse workspace files</div></div>`;
+      }
+    }
+  </script>
+</body>
+</html>

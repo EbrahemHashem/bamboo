@@ -1,0 +1,445 @@
+{
+  "version": "1.0.0",
+  "mcps": [
+    {
+      "id": "airtable",
+      "name": "Airtable",
+      "category": "Data",
+      "icon": "&#128202;",
+      "description": "Records, deal tracking, creative assets",
+      "command": "npx",
+      "args": ["-y", "airtable-mcp-server"],
+      "fields": [
+        {
+          "key": "AIRTABLE_API_KEY",
+          "label": "Personal Access Token",
+          "type": "password",
+          "placeholder": "patXXXXXXXXXXXXXX.XXXXXX...",
+          "help": "Maak een token op airtable.com/create/tokens met scopes data.records:read/write en schema.bases:read"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://api.airtable.com/v0/meta/bases",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "AIRTABLE_API_KEY"
+      },
+      "docsUrl": "https://airtable.com/developers/web/api/introduction"
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "category": "Database",
+      "icon": "&#9889;",
+      "description": "PostgreSQL backend, call insights, hooks, KPIs",
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--access-token"],
+      "argsFromFields": ["SUPABASE_ACCESS_TOKEN"],
+      "fields": [
+        {
+          "key": "SUPABASE_ACCESS_TOKEN",
+          "label": "Access Token",
+          "type": "password",
+          "placeholder": "sbp_XXXXXXXXXXXXXXXXXXXX",
+          "help": "Maak een access token op supabase.com/dashboard/account/tokens"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://api.supabase.com/v1/projects",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "SUPABASE_ACCESS_TOKEN"
+      },
+      "docsUrl": "https://supabase.com/docs/guides/getting-started/mcp"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "category": "Docs",
+      "icon": "&#128221;",
+      "description": "Pages, databases, knowledge base sync",
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "fields": [
+        {
+          "key": "NOTION_API_KEY",
+          "label": "Internal Integration Secret",
+          "type": "password",
+          "placeholder": "ntn_XXXXXXXXXXXXXXXXXXXX...",
+          "help": "Maak een internal integration op notion.so/profile/integrations en deel je pages ermee"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://api.notion.com/v1/users/me",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "NOTION_API_KEY",
+        "extraHeaders": { "Notion-Version": "2022-06-28" }
+      },
+      "docsUrl": "https://developers.notion.com/docs/mcp"
+    },
+    {
+      "id": "apify",
+      "name": "Apify",
+      "category": "Scraping",
+      "icon": "&#128375;",
+      "description": "Web scraping, social media data extraction",
+      "command": "npx",
+      "args": ["-y", "@apify/actors-mcp-server"],
+      "fields": [
+        {
+          "key": "APIFY_TOKEN",
+          "label": "API Token",
+          "type": "password",
+          "placeholder": "apify_api_XXXXXXXXXXXXXXXXXXXX",
+          "help": "Vind je token op console.apify.com/account/integrations"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://api.apify.com/v2/users/me",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "APIFY_TOKEN"
+      },
+      "docsUrl": "https://docs.apify.com/platform/integrations/mcp"
+    },
+    {
+      "id": "google-drive",
+      "name": "Google Drive",
+      "category": "Storage",
+      "icon": "&#128193;",
+      "description": "Document storage, shared files, asset management",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gdrive"],
+      "fields": [
+        {
+          "key": "GDRIVE_OAUTH_PATH",
+          "label": "Path naar credentials.json",
+          "type": "text",
+          "placeholder": "/Users/jij/Downloads/credentials.json",
+          "help": "Download OAuth client van console.cloud.google.com en sla lokaal op"
+        }
+      ],
+      "test": null,
+      "docsUrl": "https://developers.google.com/workspace/drive/api/quickstart/js"
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "category": "Email",
+      "icon": "&#9993;",
+      "description": "Email management, threads, drafts",
+      "command": "npx",
+      "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"],
+      "fields": [
+        {
+          "key": "GMAIL_CREDENTIALS_PATH",
+          "label": "Path naar OAuth credentials.json",
+          "type": "text",
+          "placeholder": "/Users/jij/.gmail-mcp/credentials.json",
+          "help": "Setup OAuth client volgens Gmail MCP docs"
+        }
+      ],
+      "test": null,
+      "docsUrl": "https://github.com/GongRzhe/Gmail-MCP-Server"
+    },
+    {
+      "id": "google-calendar",
+      "name": "Google Calendar",
+      "category": "Calendar",
+      "icon": "&#128197;",
+      "description": "Meetings, scheduling, availability",
+      "command": "npx",
+      "args": ["-y", "@cocal/google-calendar-mcp"],
+      "fields": [
+        {
+          "key": "GOOGLE_OAUTH_CREDENTIALS",
+          "label": "Path naar OAuth credentials.json",
+          "type": "text",
+          "placeholder": "/Users/jij/.gcal-mcp/credentials.json",
+          "help": "OAuth setup via Google Cloud Console"
+        }
+      ],
+      "test": null,
+      "docsUrl": "https://github.com/nspady/google-calendar-mcp"
+    },
+    {
+      "id": "meta-ads",
+      "name": "Meta Ads",
+      "category": "Ads",
+      "icon": "&#128200;",
+      "description": "Facebook & Instagram ad campaigns, performance",
+      "command": "npx",
+      "args": ["-y", "meta-ads-mcp"],
+      "fields": [
+        {
+          "key": "META_ACCESS_TOKEN",
+          "label": "Meta Access Token (long-lived)",
+          "type": "password",
+          "placeholder": "EAAXXXXXXXXXXXXXXXXXX...",
+          "help": "Maak via Meta Business Suite > System Users > Generate Token"
+        },
+        {
+          "key": "META_AD_ACCOUNT_ID",
+          "label": "Ad Account ID",
+          "type": "text",
+          "placeholder": "act_1234567890",
+          "help": "Vind in Meta Business Suite > Account Overview"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://graph.facebook.com/v21.0/me",
+        "queryParam": "access_token",
+        "authKey": "META_ACCESS_TOKEN"
+      },
+      "docsUrl": "https://developers.facebook.com/docs/marketing-apis"
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "category": "Communication",
+      "icon": "&#128172;",
+      "description": "Team messages, channels, report delivery",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "fields": [
+        {
+          "key": "SLACK_BOT_TOKEN",
+          "label": "Bot User OAuth Token",
+          "type": "password",
+          "placeholder": "xoxb-XXXXXXXXXXX-XXXX...",
+          "help": "Maak een Slack app op api.slack.com/apps en installeer in workspace"
+        },
+        {
+          "key": "SLACK_TEAM_ID",
+          "label": "Workspace Team ID",
+          "type": "text",
+          "placeholder": "T0123456789",
+          "help": "Vind in Slack > Workspace Settings"
+        }
+      ],
+      "test": {
+        "method": "POST",
+        "url": "https://slack.com/api/auth.test",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "SLACK_BOT_TOKEN"
+      },
+      "docsUrl": "https://api.slack.com/quickstart"
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "category": "Communication",
+      "icon": "&#9993;",
+      "description": "Bots, channels, message automation",
+      "command": "npx",
+      "args": ["-y", "@chaindead/telegram-mcp"],
+      "fields": [
+        {
+          "key": "TELEGRAM_BOT_TOKEN",
+          "label": "Bot Token (van @BotFather)",
+          "type": "password",
+          "placeholder": "123456:ABC-DEF1234ghIkl...",
+          "help": "Maak bot via @BotFather op Telegram"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "urlTemplate": "https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe",
+        "authKey": "TELEGRAM_BOT_TOKEN"
+      },
+      "docsUrl": "https://core.telegram.org/bots/api"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "category": "Code",
+      "icon": "&#128187;",
+      "description": "Repos, issues, PRs, commits",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "fields": [
+        {
+          "key": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "label": "Personal Access Token (classic of fine-grained)",
+          "type": "password",
+          "placeholder": "ghp_XXXXXXXXXXXXXXXXXXXX",
+          "help": "Maak op github.com/settings/tokens met scopes repo, read:org"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://api.github.com/user",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "GITHUB_PERSONAL_ACCESS_TOKEN"
+      },
+      "docsUrl": "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"
+    },
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "category": "E-commerce",
+      "icon": "&#128722;",
+      "description": "Orders, products, customers, inventory",
+      "command": "npx",
+      "args": ["-y", "@shopify/dev-mcp"],
+      "fields": [
+        {
+          "key": "SHOPIFY_STORE_URL",
+          "label": "Store URL",
+          "type": "text",
+          "placeholder": "your-store.myshopify.com",
+          "help": "Volledige domain van je Shopify store"
+        },
+        {
+          "key": "SHOPIFY_ADMIN_TOKEN",
+          "label": "Admin API Access Token",
+          "type": "password",
+          "placeholder": "shpat_XXXXXXXXXXXXXXXXXXXX",
+          "help": "Maak custom app in Shopify Admin > Apps > Develop apps"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "urlTemplate": "https://{SHOPIFY_STORE_URL}/admin/api/2024-10/shop.json",
+        "authHeader": "X-Shopify-Access-Token",
+        "authKey": "SHOPIFY_ADMIN_TOKEN"
+      },
+      "docsUrl": "https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens"
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe",
+      "category": "Payments",
+      "icon": "&#128179;",
+      "description": "Charges, customers, subscriptions, payouts",
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp", "--tools=all"],
+      "fields": [
+        {
+          "key": "STRIPE_SECRET_KEY",
+          "label": "Secret API Key",
+          "type": "password",
+          "placeholder": "sk_live_XXXXXXXXXXXXXX of sk_test_XXXXXX",
+          "help": "Vind op dashboard.stripe.com/apikeys"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "url": "https://api.stripe.com/v1/balance",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "STRIPE_SECRET_KEY"
+      },
+      "docsUrl": "https://docs.stripe.com/agents/mcp"
+    },
+    {
+      "id": "linear",
+      "name": "Linear",
+      "category": "Project Mgmt",
+      "icon": "&#128203;",
+      "description": "Issues, projects, sprints",
+      "command": "npx",
+      "args": ["-y", "linear-mcp-server"],
+      "fields": [
+        {
+          "key": "LINEAR_API_KEY",
+          "label": "Personal API Key",
+          "type": "password",
+          "placeholder": "lin_api_XXXXXXXXXXXXXXXXXX",
+          "help": "Maak op linear.app/settings/api"
+        }
+      ],
+      "test": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "authHeader": "Authorization",
+        "authKey": "LINEAR_API_KEY",
+        "body": "{\"query\":\"{ viewer { id } }\"}",
+        "extraHeaders": { "Content-Type": "application/json" }
+      },
+      "docsUrl": "https://developers.linear.app"
+    },
+    {
+      "id": "n8n",
+      "name": "n8n",
+      "category": "Automation",
+      "icon": "&#9881;",
+      "description": "Workflow orchestration tussen alle services",
+      "command": "npx",
+      "args": ["-y", "n8n-mcp"],
+      "fields": [
+        {
+          "key": "N8N_API_URL",
+          "label": "n8n Instance URL",
+          "type": "text",
+          "placeholder": "https://your-instance.app.n8n.cloud",
+          "help": "URL van je n8n cloud of self-hosted instance"
+        },
+        {
+          "key": "N8N_API_KEY",
+          "label": "API Key",
+          "type": "password",
+          "placeholder": "eyJhbGciOiJIUzI1NiIs...",
+          "help": "Maak in n8n Settings > API"
+        }
+      ],
+      "test": {
+        "method": "GET",
+        "urlTemplate": "{N8N_API_URL}/api/v1/workflows?limit=1",
+        "authHeader": "X-N8N-API-KEY",
+        "authKey": "N8N_API_KEY"
+      },
+      "docsUrl": "https://docs.n8n.io/api/authentication"
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity",
+      "category": "Search",
+      "icon": "&#128269;",
+      "description": "Real-time web search met AI antwoorden",
+      "command": "npx",
+      "args": ["-y", "server-perplexity-ask"],
+      "fields": [
+        {
+          "key": "PERPLEXITY_API_KEY",
+          "label": "API Key",
+          "type": "password",
+          "placeholder": "pplx-XXXXXXXXXXXXXXXXXXXX",
+          "help": "Vind op perplexity.ai/settings/api"
+        }
+      ],
+      "test": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authHeader": "Authorization",
+        "authPrefix": "Bearer ",
+        "authKey": "PERPLEXITY_API_KEY",
+        "body": "{\"model\":\"sonar\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":1}",
+        "extraHeaders": { "Content-Type": "application/json" }
+      },
+      "docsUrl": "https://docs.perplexity.ai"
+    }
+  ],
+  "tierC": [
+    {
+      "id": "computer-use",
+      "name": "Computer Use",
+      "description": "Desktop control via screenshots + clicks. Setup vereist Anthropic OS app.",
+      "docsUrl": "https://docs.claude.com/en/docs/agents-and-tools/computer-use"
+    },
+    {
+      "id": "claude-in-chrome",
+      "name": "Claude in Chrome",
+      "description": "Browser automation extensie. Installeer via Chrome Web Store.",
+      "docsUrl": "https://claude.com/chrome"
+    }
+  ]
+}

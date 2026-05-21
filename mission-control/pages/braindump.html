@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Dump — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .dump-wrap { display: grid; grid-template-columns: 1fr 280px; gap: 16px; }
+    .dump-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+    .dump-title-input {
+      width: 100%; background: transparent; border: none; color: var(--text);
+      font-family: var(--font-body); font-size: 18px; font-weight: 500;
+      padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+    .dump-title-input:focus { outline: none; border-bottom-color: var(--accent); }
+    .dump-textarea {
+      width: 100%; min-height: 320px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md);
+      color: var(--text); font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+      padding: 14px; resize: vertical; box-sizing: border-box; transition: border-color 0.15s;
+    }
+    .dump-textarea:focus { outline: none; border-color: var(--accent); }
+    .dump-footer { margin-top: 14px; display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-family: var(--font-mono); font-size: 11px; }
+    .dump-footer .grow { flex: 1; }
+
+    .side-title { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; }
+    .tag-input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md);
+      color: var(--text); font-family: var(--font-mono); font-size: 12px;
+      padding: 8px 10px; box-sizing: border-box;
+    }
+    .tag-input:focus { outline: none; border-color: var(--accent); }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: rgba(0,255,136,0.08); color: var(--accent); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.5px; border-radius: 12px; cursor: pointer; }
+    .tag-chip:hover { background: rgba(0,255,136,0.15); }
+    .tag-chip .x { opacity: 0.5; }
+
+    .quick-tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .quick-tag { padding: 3px 8px; background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-family: var(--font-mono); font-size: 10px; border-radius: 12px; cursor: pointer; transition: all 0.15s; }
+    .quick-tag:hover { color: var(--accent); border-color: var(--accent); }
+
+    .recent-dump { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .recent-dump:last-child { border-bottom: none; }
+    .recent-dump .name { color: var(--text); font-family: var(--font-mono); font-size: 11px; }
+    .recent-dump .when { color: var(--text-muted); font-family: var(--font-mono); font-size: 9px; margin-top: 2px; letter-spacing: 0.5px; }
+
+    @media (max-width: 900px) { .dump-wrap { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Brain Dump</h1>
+          <div class="subtitle" id="vaultSubtitle">Snelle capture direct naar je Obsidian inbox</div>
+        </div>
+        <button class="btn btn-primary btn-sm btn-shimmer" id="sendBtn" onclick="sendDump()">Send to Inbox &rarr;</button>
+      </div>
+
+      <div class="dump-wrap fade-up fade-up-1">
+        <div class="dump-card">
+          <input class="dump-title-input" id="dumpTitle" placeholder="Optional title..." maxlength="200" />
+          <textarea class="dump-textarea" id="dumpContent" placeholder="Dump je gedachten hier... Cmd/Ctrl+Enter om te versturen."></textarea>
+          <div class="dump-footer">
+            <span id="charCount">0 chars</span>
+            <span class="grow"></span>
+            <span>Cmd+Enter = send</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="dump-card" style="margin-bottom: 16px;">
+            <div class="side-title">Tags</div>
+            <input class="tag-input" id="tagInput" placeholder="tag-name (enter)" />
+            <div class="tag-row" id="tagRow"></div>
+            <div class="quick-tags">
+              <button class="quick-tag" onclick="addQuickTag('idea')">idea</button>
+              <button class="quick-tag" onclick="addQuickTag('todo')">todo</button>
+              <button class="quick-tag" onclick="addQuickTag('voltera')">voltera</button>
+              <button class="quick-tag" onclick="addQuickTag('winners')">winners</button>
+              <button class="quick-tag" onclick="addQuickTag('187n')">187n</button>
+              <button class="quick-tag" onclick="addQuickTag('content')">content</button>
+            </div>
+          </div>
+
+          <div class="dump-card">
+            <div class="side-title">Recent dumps</div>
+            <div id="recentList"><div style="color:var(--text-muted); font-size:11px;">Laden...</div></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let TAGS = [];
+    let VAULT_NAME = 'obsidian';
+    let INBOX = '00 — Inbox';
+
+    (async () => {
+      await MC.init();
+      renderNav('braindump');
+      initMobileNav();
+      loadRecent();
+      setupHotkeys();
+      updateCharCount();
+    })();
+
+    function updateCharCount() {
+      const n = document.getElementById('dumpContent').value.length;
+      document.getElementById('charCount').textContent = n + ' chars';
+    }
+    document.getElementById('dumpContent').addEventListener('input', updateCharCount);
+
+    document.getElementById('tagInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const v = e.target.value.trim().replace(/^#/, '');
+        if (v) addTag(v);
+        e.target.value = '';
+      } else if (e.key === 'Backspace' && !e.target.value && TAGS.length) {
+        TAGS.pop(); renderTags();
+      }
+    });
+
+    function setupHotkeys() {
+      document.getElementById('dumpContent').addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          sendDump();
+        }
+      });
+    }
+
+    function addTag(t) {
+      t = t.toLowerCase().replace(/[^a-z0-9\-/]/g, '-').replace(/^-+|-+$/g, '');
+      if (!t || TAGS.includes(t) || TAGS.length >= 10) return;
+      TAGS.push(t); renderTags();
+    }
+    function addQuickTag(t) { addTag(t); }
+    function removeTag(t) { TAGS = TAGS.filter(x => x !== t); renderTags(); }
+    function renderTags() {
+      document.getElementById('tagRow').innerHTML = TAGS.map(t =>
+        `<span class="tag-chip" onclick="removeTag('${t}')">#${t}<span class="x">&times;</span></span>`
+      ).join('');
+    }
+
+    async function loadRecent() {
+      const data = await Bridge.fetch('/api/obsidian/tree');
+      if (!data || !data.tree) {
+        document.getElementById('recentList').innerHTML = '<div style="color:var(--text-muted); font-size:11px;">Vault niet gevonden. Check Settings.</div>';
+        return;
+      }
+      VAULT_NAME = data.vaultName || 'obsidian';
+      INBOX = data.inbox || '00 — Inbox';
+      document.getElementById('vaultSubtitle').textContent = `Schrijft naar ${VAULT_NAME}/${INBOX}`;
+
+      const inboxFolder = (data.tree || []).find(t => t.type === 'folder' && t.name === INBOX);
+      const files = (inboxFolder ? inboxFolder.children : []).filter(c => c.type === 'file');
+      files.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+      const recent = files.slice(0, 8);
+
+      if (!recent.length) {
+        document.getElementById('recentList').innerHTML = '<div style="color:var(--text-muted); font-size:11px;">Nog geen dumps.</div>';
+        return;
+      }
+      document.getElementById('recentList').innerHTML = recent.map(f => {
+        const when = timeAgo(f.mtime);
+        const displayName = f.name.replace(/\.md$/, '').replace(/^\d{4}-\d{2}-\d{2}-\d{4}-/, '');
+        const obsidianUri = `obsidian://open?vault=${encodeURIComponent(VAULT_NAME)}&file=${encodeURIComponent(INBOX + '/' + f.name.replace(/\.md$/, ''))}`;
+        return `<div class="recent-dump">
+          <div class="name"><a href="${obsidianUri}" style="color:inherit; text-decoration:none;" title="Open in Obsidian">${displayName}</a></div>
+          <div class="when">${when}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function timeAgo(ms) {
+      if (!ms) return '';
+      const d = Date.now() - ms;
+      if (d < 60000) return 'just now';
+      if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+      if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+      return Math.floor(d / 86400000) + 'd ago';
+    }
+
+    async function sendDump() {
+      const btn = document.getElementById('sendBtn');
+      const content = document.getElementById('dumpContent').value.trim();
+      const title = document.getElementById('dumpTitle').value.trim();
+      if (!content) { showToast('Leeg — type eerst iets'); return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        const r = await Bridge.fetch('/api/obsidian/brain-dump', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, title: title || undefined, tags: TAGS }),
+        });
+        if (r && r.ok) {
+          showToast('Gedumpt in Inbox');
+          document.getElementById('dumpContent').value = '';
+          document.getElementById('dumpTitle').value = '';
+          TAGS = [];
+          renderTags();
+          updateCharCount();
+          loadRecent();
+        } else {
+          showToast('Mislukt: ' + ((r && r.error) || 'unknown'));
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Send to Inbox &rarr;';
+      }
+    }
+  </script>
+</body>
+</html>

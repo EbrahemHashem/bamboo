@@ -1,0 +1,4 @@
+# Bamboo Disposables BV — ignore secrets + local config
+.env
+.env.local
+.env.routines

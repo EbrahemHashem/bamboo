@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Integrations — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    /* Filter pill bar */
+    .filter-bar {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 16px;
+    }
+    .filter-pill {
+      padding: 5px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .filter-pill:hover { color: var(--text); border-color: var(--accent); }
+    .filter-pill.active { color: var(--accent); border-color: var(--accent); background: rgba(0,255,136,0.06); }
+    .filter-pill .count { opacity: 0.55; margin-left: 4px; }
+
+    /* Compact card grid — all MCPs in one view */
+    .integration-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .integration-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .integration-card:hover { border-color: var(--accent); }
+    .integration-card.connected { border-color: rgba(0,255,136,0.4); }
+    .integration-card.error { border-color: rgba(255,80,80,0.3); }
+    .integration-card.hidden { display: none; }
+
+    .integration-header { display: flex; align-items: center; gap: 8px; }
+    .integration-icon {
+      width: 26px; height: 26px; border-radius: var(--radius-sm);
+      background: rgba(0,255,136,0.06);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+    .integration-name { font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.2; }
+    .integration-meta { font-family: var(--font-mono); font-size: 8px; color: var(--text-muted); letter-spacing: 0.5px; margin-top: 1px; display: flex; gap: 6px; align-items: center; }
+    .integration-meta .dot-sep { opacity: 0.4; }
+    .integration-status { margin-left: auto; }
+    .integration-footer {
+      display: flex; align-items: center; gap: 4px; margin-top: auto;
+    }
+    .integration-footer .btn {
+      flex: 1; padding: 4px 8px; font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    .integration-footer .btn-ghost { flex: 0 0 auto; padding: 4px 10px; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%; max-width: 520px;
+      max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(0,255,136,0.1);
+    }
+    .modal-head {
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .modal-head .integration-icon { width: 40px; height: 40px; font-size: 22px; }
+    .modal-head h3 { margin: 0; font-family: var(--font-body); font-weight: 500; font-size: 18px; color: var(--text); }
+    .modal-head .sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 1px; margin-top: 2px; }
+    .modal-close {
+      margin-left: auto; background: none; border: none; color: var(--text-muted);
+      font-size: 24px; cursor: pointer; padding: 0; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-body { padding: 20px 24px; }
+    .modal-body .desc { font-size: 13px; color: var(--text-sub); margin-bottom: 16px; line-height: 1.5; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 12px; color: var(--text); margin-bottom: 4px; font-weight: 500; }
+    .field input {
+      width: 100%; padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text); font-family: var(--font-mono); font-size: 12px;
+      transition: border-color 0.15s;
+      box-sizing: border-box;
+    }
+    .field input:focus { outline: none; border-color: var(--accent); }
+    .field .help { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+    .field .help a { color: var(--accent); text-decoration: none; }
+    .field .help a:hover { text-decoration: underline; }
+    .modal-foot {
+      padding: 16px 24px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+    .modal-error {
+      background: rgba(255,80,80,0.08);
+      border: 1px solid rgba(255,80,80,0.3);
+      color: #ff8080; padding: 10px 12px; border-radius: var(--radius-md);
+      font-size: 12px; margin-bottom: 16px; font-family: var(--font-mono);
+      word-break: break-word;
+    }
+    .modal-success {
+      background: rgba(0,255,136,0.08);
+      border: 1px solid rgba(0,255,136,0.3);
+      color: var(--accent); padding: 10px 12px; border-radius: var(--radius-md);
+      font-size: 12px; margin-bottom: 16px;
+    }
+    .spinner-inline {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid rgba(0,255,136,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .test-result {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 10px;
+    }
+    .test-ok { color: var(--accent); }
+    .test-fail { color: #ff8080; }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Integrations</h1>
+          <div class="subtitle">Connect je tools — keys staan veilig in je systeem (Keychain / Credential Manager)</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="testAll()">Test alle</button>
+      </div>
+
+      <div id="integrationsContainer" class="fade-up fade-up-1">
+        <div style="text-align:center; padding:60px; color: var(--text-muted);">
+          <div class="spinner-inline"></div> Laden…
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Connect Modal -->
+  <div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this) closeModal()">
+    <div class="modal" id="modal">
+      <div class="modal-head">
+        <div class="integration-icon" id="modalIcon"></div>
+        <div>
+          <h3 id="modalTitle"></h3>
+          <div class="sub" id="modalSub"></div>
+        </div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuleer</button>
+        <button class="btn btn-primary btn-sm" id="modalAction"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let CATALOG = null;
+    let INSTALLED = [];
+    let currentMcp = null;
+
+    (async () => {
+      await MC.init();
+      renderNav('integrations');
+      initMobileNav();
+      await loadAndRender();
+    })();
+
+    async function loadAndRender() {
+      const [catalog, installed] = await Promise.all([
+        Bridge.fetch('/api/mcp/catalog'),
+        Bridge.fetch('/api/mcp/installed'),
+      ]);
+      CATALOG = catalog;
+      INSTALLED = (installed && installed.installed) || [];
+      render();
+    }
+
+    function isInstalled(id) {
+      return INSTALLED.some(i => i.name === id);
+    }
+
+    function isConnected(id) {
+      const found = INSTALLED.find(i => i.name === id);
+      return found && found.connected;
+    }
+
+    let ACTIVE_FILTER = 'all';
+
+    function render() {
+      if (!CATALOG) return;
+      const container = document.getElementById('integrationsContainer');
+      const mcps = CATALOG.mcps || [];
+      const tierC = CATALOG.tierC || [];
+
+      // Build category counts (include status filters)
+      const catCounts = {};
+      mcps.forEach(m => { catCounts[m.category] = (catCounts[m.category] || 0) + 1; });
+      const connectedCount = mcps.filter(m => isConnected(m.id)).length;
+
+      const pills = [
+        `<button class="filter-pill ${ACTIVE_FILTER==='all'?'active':''}" data-filter="all">All<span class="count">${mcps.length + tierC.length}</span></button>`,
+        `<button class="filter-pill ${ACTIVE_FILTER==='connected'?'active':''}" data-filter="connected">Connected<span class="count">${connectedCount}</span></button>`,
+        `<button class="filter-pill ${ACTIVE_FILTER==='available'?'active':''}" data-filter="available">Available<span class="count">${mcps.length - connectedCount}</span></button>`,
+        ...Object.keys(catCounts).sort().map(c =>
+          `<button class="filter-pill ${ACTIVE_FILTER===c?'active':''}" data-filter="${c}">${c}<span class="count">${catCounts[c]}</span></button>`
+        ),
+        `<button class="filter-pill ${ACTIVE_FILTER==='manual'?'active':''}" data-filter="manual">Manual<span class="count">${tierC.length}</span></button>`,
+      ].join('');
+
+      const allCards = [
+        ...mcps.map(renderCard),
+        ...tierC.map(renderTierC),
+      ].join('');
+
+      container.innerHTML = `
+        <div class="filter-bar">${pills}</div>
+        <div class="integration-grid" id="intGrid">${allCards}</div>
+      `;
+
+      // Wire pill clicks
+      container.querySelectorAll('.filter-pill').forEach(p => {
+        p.addEventListener('click', () => { ACTIVE_FILTER = p.dataset.filter; applyFilter(); render(); });
+      });
+      applyFilter();
+    }
+
+    function applyFilter() {
+      const cards = document.querySelectorAll('#intGrid .integration-card');
+      cards.forEach(c => {
+        const cat = c.dataset.category;
+        const tier = c.dataset.tier;
+        const connected = c.classList.contains('connected');
+        let show = true;
+        if (ACTIVE_FILTER === 'connected') show = connected;
+        else if (ACTIVE_FILTER === 'available') show = !connected && tier !== 'manual';
+        else if (ACTIVE_FILTER === 'manual') show = tier === 'manual';
+        else if (ACTIVE_FILTER !== 'all') show = cat === ACTIVE_FILTER;
+        c.classList.toggle('hidden', !show);
+      });
+    }
+
+    function renderCard(m) {
+      const installed = isInstalled(m.id);
+      const connected = isConnected(m.id);
+      const cardClass = connected ? 'connected' : (installed ? 'error' : '');
+      const statusLabel = connected ? 'Connected' : (installed ? 'Error' : 'Not installed');
+      const dotColor = connected ? 'dot-green' : (installed ? 'dot-red' : 'dot-gray');
+
+      const primaryBtn = installed
+        ? `<button class="btn btn-ghost btn-sm" onclick="openModal('${m.id}')">Manage</button>`
+        : `<button class="btn btn-primary btn-sm" onclick="openModal('${m.id}')">Connect</button>`;
+      const testBtn = (installed && m.test)
+        ? `<button class="btn btn-ghost btn-sm" onclick="testOne('${m.id}', this)">Test</button>`
+        : '';
+
+      return `
+        <div class="integration-card ${cardClass}" id="card-${m.id}" data-category="${m.category}" title="${m.description.replace(/"/g,'&quot;')}">
+          <div class="integration-header">
+            <div class="integration-icon">${m.icon}</div>
+            <div style="min-width:0; flex:1;">
+              <div class="integration-name">${m.name}</div>
+              <div class="integration-meta"><span>${m.category}</span><span class="dot-sep">•</span><span>${statusLabel}</span></div>
+            </div>
+            <div class="integration-status"><div class="dot ${dotColor}"></div></div>
+          </div>
+          <div class="integration-footer">
+            ${primaryBtn}
+            ${testBtn}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderTierC(t) {
+      return `
+        <div class="integration-card" data-tier="manual" title="${t.description.replace(/"/g,'&quot;')}">
+          <div class="integration-header">
+            <div class="integration-icon">&#128295;</div>
+            <div style="min-width:0; flex:1;">
+              <div class="integration-name">${t.name}</div>
+              <div class="integration-meta"><span>Manual</span></div>
+            </div>
+          </div>
+          <div class="integration-footer">
+            <a class="btn btn-ghost btn-sm" href="${t.docsUrl}" target="_blank" rel="noopener" style="text-decoration:none;">Docs &#8599;</a>
+          </div>
+        </div>
+      `;
+    }
+
+    function openModal(id) {
+      currentMcp = (CATALOG.mcps || []).find(m => m.id === id);
+      if (!currentMcp) return;
+      const installed = isInstalled(id);
+
+      document.getElementById('modalIcon').innerHTML = currentMcp.icon;
+      document.getElementById('modalTitle').textContent = currentMcp.name;
+      document.getElementById('modalSub').textContent = currentMcp.category.toUpperCase();
+
+      let bodyHtml = `<div class="desc">${currentMcp.description}</div>`;
+
+      if (installed) {
+        bodyHtml += `<div class="modal-success">&#10003; Geïnstalleerd. Keys zijn opgeslagen in je systeem-keychain.</div>`;
+        bodyHtml += `<div class="desc">Klik <strong>Verwijderen</strong> om de MCP te uninstallen en credentials te wissen, of <strong>Opnieuw connecten</strong> om keys te updaten.</div>`;
+      }
+
+      bodyHtml += '<div id="modalErr"></div>';
+
+      bodyHtml += (currentMcp.fields || []).map(f => `
+        <div class="field">
+          <label>${f.label}</label>
+          <input type="${f.type === 'password' ? 'password' : 'text'}" name="${f.key}" placeholder="${f.placeholder || ''}" autocomplete="off" />
+          ${f.help ? `<div class="help">${linkify(f.help)} ${currentMcp.docsUrl ? `<a href="${currentMcp.docsUrl}" target="_blank">Docs &#8599;</a>` : ''}</div>` : ''}
+        </div>
+      `).join('');
+
+      document.getElementById('modalBody').innerHTML = bodyHtml;
+
+      const action = document.getElementById('modalAction');
+      if (installed) {
+        action.innerHTML = '';
+        action.textContent = 'Opnieuw connecten';
+        action.onclick = () => doInstall(true);
+        // Add uninstall in foot
+        const foot = document.querySelector('.modal-foot');
+        if (!foot.querySelector('.btn-uninstall')) {
+          const u = document.createElement('button');
+          u.className = 'btn btn-ghost btn-sm btn-uninstall';
+          u.style.marginRight = 'auto';
+          u.style.color = '#ff8080';
+          u.textContent = 'Verwijderen';
+          u.onclick = () => doUninstall();
+          foot.insertBefore(u, foot.firstChild);
+        }
+      } else {
+        action.textContent = 'Connect';
+        action.onclick = () => doInstall(false);
+        // remove uninstall btn
+        const u = document.querySelector('.btn-uninstall');
+        if (u) u.remove();
+      }
+
+      document.getElementById('modalBackdrop').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('modalBackdrop').classList.remove('active');
+      const u = document.querySelector('.btn-uninstall');
+      if (u) u.remove();
+      currentMcp = null;
+    }
+
+    async function doInstall(isReinstall) {
+      if (!currentMcp) return;
+      const action = document.getElementById('modalAction');
+      const errEl = document.getElementById('modalErr');
+      errEl.innerHTML = '';
+
+      // Collect credentials
+      const creds = {};
+      for (const f of currentMcp.fields || []) {
+        const inp = document.querySelector(`input[name="${f.key}"]`);
+        const val = inp ? inp.value.trim() : '';
+        if (!val) {
+          errEl.innerHTML = `<div class="modal-error">Vul ${f.label} in</div>`;
+          return;
+        }
+        creds[f.key] = val;
+      }
+
+      action.disabled = true;
+      action.innerHTML = '<span class="spinner-inline"></span> Installeren…';
+
+      try {
+        const r = await Bridge.fetch('/api/mcp/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentMcp.id, credentials: creds }),
+        });
+        if (r && r.ok) {
+          showToast(`${currentMcp.name} geïnstalleerd`);
+          closeModal();
+          await loadAndRender();
+          // Auto-test after install
+          if (currentMcp.test) setTimeout(() => testOne(currentMcp.id), 300);
+        } else {
+          errEl.innerHTML = `<div class="modal-error">${(r && r.error) || 'Install mislukt'}</div>`;
+        }
+      } catch (e) {
+        errEl.innerHTML = `<div class="modal-error">${e.message}</div>`;
+      } finally {
+        action.disabled = false;
+        action.textContent = isReinstall ? 'Opnieuw connecten' : 'Connect';
+      }
+    }
+
+    async function doUninstall() {
+      if (!currentMcp) return;
+      if (!confirm(`Verwijder ${currentMcp.name} en wis alle keys?`)) return;
+      const action = document.getElementById('modalAction');
+      action.disabled = true;
+      try {
+        await Bridge.fetch('/api/mcp/uninstall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentMcp.id }),
+        });
+        showToast(`${currentMcp.name} verwijderd`);
+        closeModal();
+        await loadAndRender();
+      } catch (e) {
+        alert(e.message);
+      } finally {
+        action.disabled = false;
+      }
+    }
+
+    async function testOne(id, btn) {
+      const card = document.getElementById(`card-${id}`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Test…'; }
+      try {
+        const r = await Bridge.fetch('/api/mcp/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        if (r && r.ok) {
+          showToast(`${id}: OK (${r.latency}ms)`);
+          if (card) card.classList.add('connected');
+        } else {
+          showToast(`${id}: ${(r && r.error) || 'Failed'}`);
+          if (card) { card.classList.remove('connected'); card.classList.add('error'); }
+        }
+      } catch (e) {
+        showToast(`${id}: ${e.message}`);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Test'; }
+      }
+    }
+
+    async function testAll() {
+      const installedTestable = (CATALOG.mcps || []).filter(m => isInstalled(m.id) && m.test);
+      if (!installedTestable.length) return showToast('Geen testbare MCPs geïnstalleerd');
+      showToast(`Testing ${installedTestable.length} MCPs…`);
+      // Run in parallel, max 5 at a time
+      const chunks = [];
+      for (let i = 0; i < installedTestable.length; i += 5) chunks.push(installedTestable.slice(i, i + 5));
+      for (const chunk of chunks) {
+        await Promise.all(chunk.map(m => testOne(m.id)));
+      }
+      showToast('Test compleet');
+    }
+
+    function linkify(text) {
+      return text.replace(/(https?:\/\/[^\s)]+)/g, '<a href="$1" target="_blank">$1</a>');
+    }
+  </script>
+</body>
+</html>

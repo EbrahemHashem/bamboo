@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Security</h1>
+          <div class="subtitle">Permission management and access control</div>
+        </div>
+      </div>
+      <div class="fade-up fade-up-1">
+        
+<div class="section">
+  <div class="section-head"><div class="section-title">Permission Mode</div></div>
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:12px;padding:8px;">
+      <div class="dot dot-green dot-pulse"></div>
+      <div>
+        <div style="font-weight:500;color:var(--text);">Bypass Permissions</div>
+        <div style="font-size:12px;color:var(--text-muted);">Agents run with full access — no permission prompts</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-head"><div class="section-title">Allowed Tools</div></div>
+  <div class="card">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;">
+      <span class="badge badge-green">Read</span>
+      <span class="badge badge-green">Write</span>
+      <span class="badge badge-green">Edit</span>
+      <span class="badge badge-green">Bash</span>
+      <span class="badge badge-green">Grep</span>
+      <span class="badge badge-green">Glob</span>
+      <span class="badge badge-green">Agent</span>
+      <span class="badge badge-green">WebFetch</span>
+      <span class="badge badge-green">WebSearch</span>
+      <span class="badge badge-green">MCP Tools</span>
+    </div>
+  </div>
+</div>
+<div class="section">
+  <div class="section-head"><div class="section-title">Access Log</div></div>
+  <div class="card">
+    <div class="empty-state">
+      <div class="empty-icon">🛡️</div>
+      <div class="empty-title">Access logging coming soon</div>
+    </div>
+  </div>
+</div>
+      </div>
+    </main>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('security');
+      initMobileNav();
+    })();
+  </script>
+</body>
+</html>

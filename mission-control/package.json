@@ -1,0 +1,17 @@
+{
+  "name": "187n-mission-control",
+  "version": "1.0.0",
+  "description": "187N Mission Control — Client Dashboard for Claude Code",
+  "main": "bridge-server.js",
+  "scripts": {
+    "start": "node bridge-server.js",
+    "dev": "node bridge-server.js"
+  },
+  "author": "187N AI",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "keytar": "^7.9.0",
+    "xlsx": "^0.18.5"
+  }
+}

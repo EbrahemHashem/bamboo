@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finance Reports — Greatgoodie LLC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <style>
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; }
+    .kpi-card .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted); }
+    .kpi-card .val { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--text); margin-top: 4px; line-height: 1; }
+    .kpi-card.income .val { color: var(--accent); }
+    .kpi-card.expense .val { color: #e55; }
+    .kpi-card .sub { font-size: 10px; color: var(--text-muted); margin-top: 6px; }
+
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 12px; margin-bottom: 14px; }
+    .controls input[type=text], .controls select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 10px; border-radius: var(--radius-md); font-family: var(--font-mono);
+      font-size: 11px; outline: none;
+    }
+    .controls input[type=text] { min-width: 220px; }
+    .controls input[type=text]:focus, .controls select:focus { border-color: var(--accent); }
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px;
+      border-radius: 14px; background: var(--bg); border: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: 10px; cursor: pointer; color: var(--text-sub);
+      letter-spacing: 0.5px;
+    }
+    .tag:hover { border-color: var(--accent); color: var(--accent); }
+    .tag.active { background: var(--accent-ghost); border-color: var(--accent); color: var(--accent); }
+
+    .actions { margin-left: auto; display: flex; gap: 8px; }
+    .actions a, .actions button {
+      font-family: var(--font-mono); font-size: 11px; padding: 7px 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+      color: var(--text-sub); cursor: pointer; text-decoration: none; display: inline-block;
+    }
+    .actions a:hover, .actions button:hover { border-color: var(--accent); color: var(--accent); }
+    .actions .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+
+    .card-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .panel-title { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-sub); }
+    .panel-count { font-family: var(--font-mono); font-size: 10px; color: var(--accent); }
+
+    table.vtable { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.vtable th { background: var(--bg); font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; cursor: pointer; }
+    table.vtable th:hover { color: var(--accent); }
+    table.vtable td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text-sub); vertical-align: middle; }
+    table.vtable tr:hover td { background: var(--accent-ghost); }
+    table.vtable td.amt { font-family: var(--font-mono); text-align: right; font-size: 11px; }
+    table.vtable td.amt.pos { color: var(--accent); }
+    table.vtable td.amt.neg { color: #e55; }
+    .tbl-wrap { max-height: 560px; overflow-y: auto; }
+
+    .source-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .dot-slash { background: #f5a623; }
+    .dot-aw    { background: #5af; }
+    .dot-pp    { background: #00cc88; }
+    .dot-multi { background: linear-gradient(135deg, #f5a623 0%, #5af 50%, #00cc88 100%); }
+
+    .empty-row td { text-align: center; padding: 28px 0; color: var(--text-muted); font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Finance Reports</h1>
+          <div class="subtitle" id="reportSubtitle">All sources · April 2026</div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row fade-up fade-up-1" id="kpiRow"></div>
+
+      <!-- Controls -->
+      <div class="controls fade-up fade-up-2">
+        <input type="text" id="search" placeholder="🔎 Search vendor name..." oninput="render()">
+        <span class="tag active" data-source="all" onclick="setSource('all')">All Sources</span>
+        <span class="tag" data-source="slash" onclick="setSource('slash')">Slash Bank</span>
+        <span class="tag" data-source="aw" onclick="setSource('aw')">Airwallex</span>
+        <span class="tag" data-source="pp" onclick="setSource('pp')">PayPal</span>
+        <select id="signFilter" onchange="render()">
+          <option value="all">All amounts</option>
+          <option value="income">Income only (positive)</option>
+          <option value="expense">Expenses only (negative)</option>
+        </select>
+        <select id="minAmt" onchange="render()">
+          <option value="0">Min: any</option>
+          <option value="100">≥ $100</option>
+          <option value="1000">≥ $1,000</option>
+          <option value="10000">≥ $10,000</option>
+        </select>
+        <div class="actions" style="margin-left:auto;">
+          <a id="downloadPdfBtn" href="../reports/COMBINED_FINANCE_APRIL_2026.pdf" download class="btn-primary">⬇ Download Report (PDF)</a>
+          <button onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- Full-width vendor table -->
+      <div class="card-panel fade-up fade-up-3">
+        <div class="panel-head">
+          <span class="panel-title" id="tableTitle">Vendor Totals — All Sources</span>
+          <span class="panel-count" id="rowCount">—</span>
+        </div>
+        <div class="tbl-wrap" style="max-height: calc(100vh - 380px); min-height: 420px;">
+          <table class="vtable">
+            <thead>
+              <tr>
+                <th data-sort="rank" style="width:42px;text-align:right;">#</th>
+                <th data-sort="vendor">Vendor</th>
+                <th data-sort="sources" style="width:90px;">Sources</th>
+                <th data-sort="aw_card_usd" style="text-align:right;">AW Card</th>
+                <th data-sort="aw_pay_usd"  style="text-align:right;">AW Pay</th>
+                <th data-sort="slash_usd"   style="text-align:right;">Slash</th>
+                <th data-sort="pp_usd"      style="text-align:right;">PayPal</th>
+                <th data-sort="txns"        style="text-align:right;width:60px;">Txns</th>
+                <th data-sort="total_usd"   style="text-align:right;">Total USD</th>
+                <th data-sort="pct"         style="text-align:right;width:70px;">% Share</th>
+              </tr>
+            </thead>
+            <tbody id="vendorTable"><tr><td colspan="10" class="empty-row">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let DATA = { vendors: [] };
+    let SOURCE = 'all';
+    let SORT_KEY = 'total_usd';
+    let SORT_DIR = -1; // -1 desc, 1 asc
+
+    (async () => {
+      await MC.init();
+      renderNav('finreports');
+      initMobileNav();
+      await loadData();
+      bindSorting();
+    })();
+
+    async function loadData() {
+      try {
+        const res = await fetch('../reports/vendors.json');
+        DATA = await res.json();
+      } catch {
+        DATA = { vendors: [] };
+      }
+      computeKpis();
+      render();
+    }
+
+    function sourcesOf(v) {
+      const s = [];
+      if (v.aw_card_n || v.aw_pay_n) s.push('aw');
+      if (v.slash_n) s.push('slash');
+      if (v.pp_n)    s.push('pp');
+      return s;
+    }
+
+    function computeKpis() {
+      const vs = DATA.vendors;
+      const income = vs.filter(v => v.total_usd > 0).reduce((s,v) => s + v.total_usd, 0);
+      const expense = vs.filter(v => v.total_usd < 0).reduce((s,v) => s + v.total_usd, 0);
+      const net = income + expense;
+      const txns = vs.reduce((s,v) => s + v.aw_card_n + v.aw_pay_n + v.slash_n + v.pp_n, 0);
+      const top = vs.slice().sort((a,b) => Math.abs(b.total_usd) - Math.abs(a.total_usd))[0];
+
+      const fmt = n => '$' + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits: 0});
+
+      document.getElementById('kpiRow').innerHTML = `
+        <div class="kpi-card income"><div class="lbl">Total Income</div><div class="val">${fmt(income)}</div><div class="sub">${vs.filter(v=>v.total_usd>0).length} vendors</div></div>
+        <div class="kpi-card expense"><div class="lbl">Total Expense</div><div class="val">${fmt(expense)}</div><div class="sub">${vs.filter(v=>v.total_usd<0).length} vendors</div></div>
+        <div class="kpi-card"><div class="lbl">Net</div><div class="val" style="color:${net>=0?'var(--accent)':'#e55'}">${(net>=0?'+':'-')}${fmt(net)}</div><div class="sub">${DATA.month||'this period'}</div></div>
+        <div class="kpi-card"><div class="lbl">Vendors</div><div class="val">${vs.length}</div><div class="sub">${txns.toLocaleString()} transactions</div></div>
+        <div class="kpi-card"><div class="lbl">Top Vendor</div><div class="val" style="font-size:13px;">${top? top.vendor.slice(0,18) : '—'}</div><div class="sub">${top? fmt(top.total_usd) + ' (' + top.pct + '%)' : ''}</div></div>
+      `;
+    }
+
+    function getFiltered() {
+      const q = (document.getElementById('search').value || '').toLowerCase();
+      const sign = document.getElementById('signFilter').value;
+      const minAmt = parseFloat(document.getElementById('minAmt').value);
+
+      return DATA.vendors.filter(v => {
+        if (q && !v.vendor.toLowerCase().includes(q)) return false;
+        if (sign === 'income' && v.total_usd <= 0) return false;
+        if (sign === 'expense' && v.total_usd >= 0) return false;
+        if (Math.abs(v.total_usd) < minAmt) return false;
+        if (SOURCE !== 'all') {
+          if (SOURCE === 'aw'    && !(v.aw_card_n || v.aw_pay_n)) return false;
+          if (SOURCE === 'slash' && !v.slash_n) return false;
+          if (SOURCE === 'pp'    && !v.pp_n) return false;
+        }
+        return true;
+      }).sort((a, b) => {
+        let av, bv;
+        if (SORT_KEY === 'vendor') { av = a.vendor.toLowerCase(); bv = b.vendor.toLowerCase(); }
+        else if (SORT_KEY === 'sources') { av = sourcesOf(a).length; bv = sourcesOf(b).length; }
+        else if (SORT_KEY === 'txns')    { av = a.aw_card_n+a.aw_pay_n+a.slash_n+a.pp_n; bv = b.aw_card_n+b.aw_pay_n+b.slash_n+b.pp_n; }
+        else { av = a[SORT_KEY]; bv = b[SORT_KEY]; }
+        return av < bv ? SORT_DIR : av > bv ? -SORT_DIR : 0;
+      });
+    }
+
+    function render() {
+      const rows = getFiltered();
+      const tbody = document.getElementById('vendorTable');
+      const totalShown = rows.reduce((s, r) => s + r.total_usd, 0);
+      document.getElementById('rowCount').textContent = `${rows.length} rows · $${Math.abs(totalShown).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+
+      const fmtCell = (val, count) => {
+        if (!count) return '<span style="color:var(--text-muted);">—</span>';
+        const s = (val >= 0 ? '$' : '-$') + Math.abs(val).toLocaleString(undefined, {maximumFractionDigits: 0});
+        const cls = val > 0 ? 'pos' : val < 0 ? 'neg' : '';
+        return `<span class="amt ${cls}" style="display:block">${s}</span><span style="color:var(--text-muted);font-size:9px;">${count} txn${count>1?'s':''}</span>`;
+      };
+
+      tbody.innerHTML = rows.length === 0
+        ? `<tr class="empty-row"><td colspan="10">No vendors match your filters</td></tr>`
+        : rows.map(v => {
+          const cls = v.total_usd > 0 ? 'pos' : v.total_usd < 0 ? 'neg' : '';
+          const amt = (v.total_usd >= 0 ? '$' : '-$') + Math.abs(v.total_usd).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+          const totalTxns = v.aw_card_n + v.aw_pay_n + v.slash_n + v.pp_n;
+          const srcs = sourcesOf(v);
+          const srcChips = srcs.map(s => `<span class="source-dot dot-${s}" title="${s}"></span>`).join('') || '<span style="color:var(--text-muted);">—</span>';
+          return `<tr>
+            <td class="amt" style="color:var(--text-muted);">${v.rank}</td>
+            <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${v.vendor}">${v.vendor}</td>
+            <td>${srcChips}</td>
+            <td class="amt">${fmtCell(v.aw_card_usd, v.aw_card_n)}</td>
+            <td class="amt">${fmtCell(v.aw_pay_usd, v.aw_pay_n)}</td>
+            <td class="amt">${fmtCell(v.slash_usd, v.slash_n)}</td>
+            <td class="amt">${fmtCell(v.pp_usd, v.pp_n)}</td>
+            <td class="amt" style="color:var(--text-muted);">${totalTxns}</td>
+            <td class="amt ${cls}"><strong>${amt}</strong></td>
+            <td class="amt" style="color:var(--text-muted);">${v.pct.toFixed(1)}%</td>
+          </tr>`;
+        }).join('');
+    }
+
+    function setSource(s) {
+      SOURCE = s;
+      document.querySelectorAll('.tag[data-source]').forEach(el => el.classList.toggle('active', el.dataset.source === s));
+      const labels = {all:'All sources', slash:'Slash Bank', aw:'Airwallex (Card + Payments)', pp:'PayPal (PawParent)'};
+      document.getElementById('reportSubtitle').textContent = labels[s] + ' · ' + (DATA.month || 'April 2026');
+      document.getElementById('tableTitle').textContent = 'Vendor Totals — ' + labels[s];
+
+      // Swap the download button to match the active source
+      const pdfMap = {
+        all:   { file: 'COMBINED_FINANCE_APRIL_2026.pdf',          name: 'Combined Finance Report (41 pages)' },
+        slash: { file: 'SLASH_ALL_TRANSACTIONS_APRIL_2026.pdf',    name: 'Slash Bank Report' },
+        aw:    { file: 'AIRWALLEX_CARD_SPEND_APRIL_2026.pdf',      name: 'Airwallex Card Spend Report' },
+        pp:    { file: 'PAYPAL_PAWPARENT_APRIL_2026.pdf',          name: 'PayPal PawParent Report' },
+      };
+      const btn = document.getElementById('downloadPdfBtn');
+      btn.href = `../reports/${pdfMap[s].file}`;
+      btn.textContent = `⬇ Download ${pdfMap[s].name}`;
+
+      render();
+    }
+
+    function bindSorting() {
+      document.querySelectorAll('table.vtable th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+          const k = th.dataset.sort;
+          if (SORT_KEY === k) SORT_DIR *= -1;
+          else { SORT_KEY = k; SORT_DIR = (k === 'vendor') ? 1 : -1; }
+          render();
+        });
+      });
+    }
+
+    function exportCSV() {
+      const rows = getFiltered();
+      const header = ['Vendor','AW Card $','AW Card #','AW Pay $','AW Pay #','Slash $','Slash #','PayPal $','PayPal #','Total USD','% Share'];
+      const csv = [header.join(',')].concat(rows.map(v => [
+        '"' + v.vendor.replace(/"/g,'""') + '"',
+        v.aw_card_usd, v.aw_card_n, v.aw_pay_usd, v.aw_pay_n,
+        v.slash_usd, v.slash_n, v.pp_usd, v.pp_n,
+        v.total_usd, v.pct
+      ].join(','))).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `vendors_${SOURCE}_${(DATA.month||'').replace(/\s+/g,'_')}.csv`;
+      a.click();
+    }
+  </script>
+</body>
+</html>

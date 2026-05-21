@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cashflow — Finance — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/tokens.css">
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/nav.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <link rel="stylesheet" href="./_shared.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div><h1>Cashflow</h1><div class="subtitle">Liquiditeit, AR aging, forecast, scenarios</div></div>
+      </div>
+      <div class="finance-tabs" id="financeTabs"></div>
+      <div id="finWarnings"></div>
+      <div id="content"><div style="text-align:center; padding:40px; color: var(--text-muted);">Loading…</div></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="../../js/config.js"></script>
+  <script src="../../js/nav.js"></script>
+  <script src="./_shared.js"></script>
+  <script>
+    let charts = {};
+    let lastData = null;
+    let scenario = { revenue_growth: 0, payment_delay: 0, cost_increase: 0 };
+
+    (async () => {
+      await MC.init();
+      renderNav('finance');
+      initMobileNav();
+      renderFinanceTabs('cashflow');
+      themeChart();
+      await reload();
+    })();
+
+    async function reload() {
+      const data = await loadFinance('cashflow', scenario);
+      if (!data || !data.configured) return showEmpty();
+      if (data.present === false) { document.getElementById('content').innerHTML = renderEmpty('Cashflow', 'cashflow.csv'); return; }
+      lastData = data;
+      renderWarnings(data.warnings);
+      render(data);
+    }
+
+    function showEmpty() {
+      document.getElementById('content').innerHTML = `<div class="fin-empty"><div class="ic">&#128735;</div><div class="title">Geen client workspace</div><div class="desc">Zet <code>clientWorkspacePath</code> in client-config.json</div></div>`;
+    }
+
+    function render(data) {
+      const k = data.kpis;
+      const runwayLabel = k.runway === 'healthy' ? 'positive FCF' : k.runway_months + ' maanden';
+      const runwayColor = k.runway === 'healthy' ? '' : 'style="color:#ff8080"';
+      const aging = data.aging;
+      const wc = data.working_capital;
+
+      const html = `
+        <div class="kpi-grid">
+          ${kpiCard('Cash Balance', fmtMoney(k.cash_balance), 'latest month', true)}
+          ${kpiCard('Operating CF', fmtMoney(k.operating_cf), fmtMoney(k.avg_monthly_fcf) + '/mo avg FCF')}
+          ${kpiCard('Free CF (YTD)', fmtMoney(k.free_cf), '', k.free_cf >= 0)}
+          ${kpiCard('Runway', runwayLabel, k.runway.toUpperCase())}
+          ${kpiCard('Net Working Capital', fmtMoney(wc.net))}
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">Cash balance trend</div>
+            <div class="chart-wrap tall"><canvas id="cashTrend"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">AR aging <span class="sub">${fmtMoney(aging.total)} total — ${aging.pct_overdue_90}% &gt; 90 days</span></div>
+            <div class="chart-wrap tall"><canvas id="agingChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-title">6-month forecast <span class="sub">Projected cash balance</span></div>
+            <div class="chart-wrap"><canvas id="forecastChart"></canvas></div>
+          </div>
+          <div class="scenario-card">
+            <div class="scenario-title">Scenario</div>
+            <div class="scenario-row"><label>Revenue growth</label><input type="range" min="-20" max="50" value="0" id="scRev"/><div class="value" id="scRevV">+0%</div></div>
+            <div class="scenario-row"><label>Payment delays</label><input type="range" min="0" max="50" value="0" id="scPay"/><div class="value" id="scPayV">+0%</div></div>
+            <div class="scenario-row"><label>Cost increase</label><input type="range" min="0" max="30" value="0" id="scCost"/><div class="value" id="scCostV">+0%</div></div>
+            <div class="scenario-output" id="scOut">Sleep de sliders — forecast herberekent live</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-title">Working capital components</div>
+          <div class="chart-wrap"><canvas id="wcChart"></canvas></div>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
+
+      renderCashTrend(data.trend);
+      renderAging(aging);
+      renderForecast(data.trend, data.forecast);
+      renderWc(wc);
+
+      // Scenario sliders
+      document.getElementById('scRev').addEventListener('input', (e) => { scenario.revenue_growth = +e.target.value / 100; document.getElementById('scRevV').textContent = (e.target.value >= 0 ? '+' : '') + e.target.value + '%'; scheduleReload(); });
+      document.getElementById('scPay').addEventListener('input', (e) => { scenario.payment_delay = +e.target.value / 100; document.getElementById('scPayV').textContent = '+' + e.target.value + '%'; scheduleReload(); });
+      document.getElementById('scCost').addEventListener('input', (e) => { scenario.cost_increase = +e.target.value / 100; document.getElementById('scCostV').textContent = '+' + e.target.value + '%'; scheduleReload(); });
+    }
+
+    let reloadTimer = null;
+    function scheduleReload() { clearTimeout(reloadTimer); reloadTimer = setTimeout(reloadForecastOnly, 250); }
+
+    async function reloadForecastOnly() {
+      const data = await loadFinance('cashflow', scenario);
+      if (!data || !data.forecast) return;
+      lastData = data;
+      const lastCash = data.forecast[data.forecast.length - 1].projected_cash;
+      const delta = lastCash - data.kpis.cash_balance;
+      document.getElementById('scOut').innerHTML = `6m projected cash: <strong>${fmtMoney(lastCash)}</strong> <span style="opacity:0.7; color:${delta>=0?'var(--accent)':'#ff8080'};">(${delta>=0?'+':''}${fmtMoney(delta)} vs current)</span>`;
+      renderForecast(data.trend, data.forecast);
+    }
+
+    function renderCashTrend(trend) {
+      const ctx = document.getElementById('cashTrend').getContext('2d');
+      if (charts.cash) charts.cash.destroy();
+      charts.cash = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: trend.map(t => t.month),
+          datasets: [
+            { label: 'Cash balance', data: trend.map(t => t.cash_balance), borderColor: FIN_COLORS.green, backgroundColor: FIN_COLORS.greenDim, tension: 0.3, fill: true },
+            { label: 'Free CF', data: trend.map(t => t.free_cf), borderColor: FIN_COLORS.yellow, tension: 0.3, yAxisID: 'y1' },
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { y: { ticks: { callback: v => fmtMoney(v, true) } }, y1: { position: 'right', ticks: { callback: v => fmtMoney(v, true) }, grid: { drawOnChartArea: false } } }
+        }
+      });
+    }
+
+    function renderAging(aging) {
+      const ctx = document.getElementById('agingChart').getContext('2d');
+      if (charts.aging) charts.aging.destroy();
+      charts.aging = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['0-30 days', '30-60 days', '60-90 days', '90+ days'],
+          datasets: [{
+            label: 'Accounts Receivable',
+            data: [aging.ar_0_30, aging.ar_30_60, aging.ar_60_90, aging.ar_90_plus],
+            backgroundColor: [FIN_COLORS.greenGhost, 'rgba(255,200,0,0.25)', 'rgba(255,165,0,0.3)', FIN_COLORS.redGhost],
+            borderColor: [FIN_COLORS.green, FIN_COLORS.yellow, '#ffa500', FIN_COLORS.red],
+            borderWidth: 1,
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+
+    function renderForecast(trend, forecast) {
+      const ctx = document.getElementById('forecastChart').getContext('2d');
+      if (charts.fc) charts.fc.destroy();
+      const histLabels = trend.map(t => t.month);
+      const histData = trend.map(t => t.cash_balance);
+      const fcLabels = forecast.map(f => f.month);
+      const fcData = forecast.map(f => f.projected_cash);
+      charts.fc = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [...histLabels, ...fcLabels],
+          datasets: [
+            { label: 'Historical', data: [...histData, ...Array(fcLabels.length).fill(null)], borderColor: FIN_COLORS.green, backgroundColor: FIN_COLORS.greenDim, tension: 0.3, fill: true },
+            { label: 'Forecast', data: [...Array(histLabels.length - 1).fill(null), histData[histData.length - 1], ...fcData], borderColor: FIN_COLORS.yellow, borderDash: [5, 5], tension: 0.3 },
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+
+    function renderWc(wc) {
+      const ctx = document.getElementById('wcChart').getContext('2d');
+      if (charts.wc) charts.wc.destroy();
+      charts.wc = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Accounts Receivable', 'Accounts Payable', 'Inventory', 'Net Working Capital'],
+          datasets: [{
+            data: [wc.ar_total, wc.ap_total, wc.inventory, wc.net],
+            backgroundColor: [FIN_COLORS.greenGhost, FIN_COLORS.redGhost, FIN_COLORS.blueGhost, FIN_COLORS.yellowGhost],
+            borderColor: [FIN_COLORS.green, FIN_COLORS.red, FIN_COLORS.blue, FIN_COLORS.yellow],
+            borderWidth: 1,
+          }]
+        },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: v => fmtMoney(v, true) } } } }
+      });
+    }
+  </script>
+</body>
+</html>

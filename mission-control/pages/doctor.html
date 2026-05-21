@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doctor — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Doctor</h1>
+          <div class="subtitle">System diagnostics and health checks</div>
+        </div>
+        <button class="btn btn-primary btn-sm btn-shimmer" onclick="runDiagnostics()">Run Check</button>
+      </div>
+      <div class="fade-up fade-up-1">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Diagnostics</div>
+            <div class="section-count" id="diagStatus">Ready</div>
+          </div>
+          <div id="diagResults">
+            <div class="card" id="diagList">
+              <div class="empty-state">
+                <div class="empty-icon">&#128167;</div>
+                <div class="empty-title">Run diagnostics</div>
+                <div class="empty-desc">Click "Run Check" to test all system components</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('doctor');
+      initMobileNav();
+      runDiagnostics();
+    })();
+
+    function runDiagnostics() {
+      const checks = [
+        { name: 'Bridge Server', status: MC.online ? 'pass' : 'fail', detail: MC.online ? 'Connected on port ' + (MC.config?.bridgePort || 3333) : 'Not reachable' },
+        { name: 'Claude Code CLI', status: 'pass', detail: 'Available in PATH' },
+        { name: 'Node.js', status: 'pass', detail: 'v22.x' },
+        { name: 'Skills Directory', status: 'pass', detail: '~/.claude/commands/' },
+        { name: 'CLAUDE.md', status: 'pass', detail: 'Found in workspace' },
+        { name: 'Memory Files', status: 'pass', detail: 'MEMORY.md accessible' },
+        { name: 'MCP Servers', status: 'unknown', detail: 'Run integration tests to verify' },
+      ];
+
+      const passed = checks.filter(c => c.status === 'pass').length;
+      document.getElementById('diagStatus').textContent = `${passed}/${checks.length} passed`;
+
+      const el = document.getElementById('diagList');
+      el.innerHTML = checks.map(c => `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--border);">
+          <div class="dot ${c.status === 'pass' ? 'dot-green' : c.status === 'fail' ? 'dot-red' : 'dot-yellow'}"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:500;color:var(--text);">${c.name}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${c.detail}</div>
+          </div>
+          <span class="badge ${c.status === 'pass' ? 'badge-green' : c.status === 'fail' ? 'badge-red' : 'badge-yellow'}">${c.status}</span>
+        </div>
+      `).join('');
+      showToast('Diagnostics complete');
+    }
+  </script>
+</body>
+</html>

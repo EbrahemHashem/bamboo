@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Data — Greatgoodie LLC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <style>
+    .data-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .data-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+    .data-card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .data-card-title { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-sub); }
+    .data-card-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 8px; border-radius: 4px; background: var(--accent-ghost); color: var(--accent); }
+    .data-card-body { padding: 16px; }
+    .stat-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .stat-chip { flex: 1; min-width: 70px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; text-align: center; }
+    .stat-chip .num { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+    .stat-chip .lbl { font-size: 10px; color: var(--text-muted); margin-top: 4px; letter-spacing: 0.5px; }
+    .stat-chip.accent .num { color: var(--accent); }
+    .stat-chip.warn .num { color: #f5a623; }
+    .stat-chip.danger .num { color: #e55; }
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .mini-table th { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    .mini-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.03); color: var(--text-sub); vertical-align: middle; }
+    .mini-table tr:last-child td { border-bottom: none; }
+    .mini-table tr:hover td { background: var(--accent-ghost); }
+    .badge-sm { font-family: var(--font-mono); font-size: 9px; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+    .badge-green { background: rgba(0,255,136,0.1); color: var(--accent); }
+    .badge-yellow { background: rgba(245,166,35,0.15); color: #f5a623; }
+    .badge-red { background: rgba(220,50,50,0.15); color: #e55; }
+    .badge-gray { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+    .badge-blue { background: rgba(80,160,255,0.15); color: #5af; }
+    .refresh-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .refresh-btn { font-family: var(--font-mono); font-size: 11px; padding: 6px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-sub); cursor: pointer; }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .last-updated { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+    .loading-pulse { opacity: 0.4; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.9} }
+    .empty-msg { font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px 0; }
+    .pipeline-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 8px 0 14px; gap: 2px; }
+    .pipeline-seg { height: 100%; border-radius: 2px; transition: width 0.4s; }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Live Data</h1>
+          <div class="subtitle">Real-time Airtable data across all Greatgoodie operations</div>
+        </div>
+        <button class="btn btn-primary btn-sm btn-shimmer" onclick="loadAll()">↻ Refresh All</button>
+      </div>
+
+      <div class="refresh-bar fade-up fade-up-1">
+        <span class="last-updated" id="lastUpdated">—</span>
+        <label style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="autoRefresh" checked style="accent-color:var(--accent)"> Auto-refresh 60s
+        </label>
+      </div>
+
+      <div class="data-grid fade-up fade-up-2">
+
+        <!-- Product Pipeline -->
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">📦 Product Pipeline</span>
+            <span class="data-card-badge" id="catalogBadge">loading...</span>
+          </div>
+          <div class="data-card-body">
+            <div class="stat-row" id="catalogStats"><div class="loading-pulse empty-msg">Loading...</div></div>
+            <div class="pipeline-bar" id="pipelineBar"></div>
+            <table class="mini-table" id="catalogTable"><thead><tr><th>Product</th><th>Category</th><th>Market</th><th>Stage</th></tr></thead><tbody><tr><td colspan="4" class="empty-msg loading-pulse">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <!-- CS Tickets -->
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">🎧 CS Tickets</span>
+            <span class="data-card-badge" id="ticketsBadge">loading...</span>
+          </div>
+          <div class="data-card-body">
+            <div class="stat-row" id="ticketsStats"><div class="loading-pulse empty-msg">Loading...</div></div>
+            <table class="mini-table" id="ticketsTable"><thead><tr><th>Subject</th><th>Priority</th><th>Category</th><th>Due</th></tr></thead><tbody><tr><td colspan="4" class="empty-msg loading-pulse">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">🏭 Inventory</span>
+            <span class="data-card-badge" id="inventoryBadge">loading...</span>
+          </div>
+          <div class="data-card-body">
+            <div class="stat-row" id="inventoryStats"><div class="loading-pulse empty-msg">Loading...</div></div>
+            <table class="mini-table" id="inventoryTable"><thead><tr><th>Product</th><th>SKU</th><th>Stock</th><th>Status</th></tr></thead><tbody><tr><td colspan="4" class="empty-msg loading-pulse">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <!-- Store Health -->
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">🏪 Store Health</span>
+            <span class="data-card-badge" id="storesBadge">loading...</span>
+          </div>
+          <div class="data-card-body">
+            <div class="stat-row" id="storesStats"><div class="loading-pulse empty-msg">Loading...</div></div>
+            <table class="mini-table" id="storesTable"><thead><tr><th>Store</th><th>Region</th><th>Conv %</th><th>Status</th></tr></thead><tbody><tr><td colspan="4" class="empty-msg loading-pulse">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <!-- Competitor Ads -->
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">🔍 Competitor Ads</span>
+            <span class="data-card-badge" id="adsBadge">loading...</span>
+          </div>
+          <div class="data-card-body">
+            <div class="stat-row" id="adsStats"><div class="loading-pulse empty-msg">Loading...</div></div>
+            <table class="mini-table" id="adsTable"><thead><tr><th>Competitor</th><th>Reach</th><th>Age</th><th>Status</th></tr></thead><tbody><tr><td colspan="4" class="empty-msg loading-pulse">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+
+        <!-- Disputes & Returns -->
+        <div class="data-card">
+          <div class="data-card-header">
+            <span class="data-card-title">⚖️ Disputes & Returns</span>
+            <span class="data-card-badge" id="disputesBadge">loading...</span>
+          </div>
+          <div class="data-card-body">
+            <div class="stat-row" id="disputesStats"><div class="loading-pulse empty-msg">Loading...</div></div>
+            <table class="mini-table" id="disputesTable"><thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody><tr><td colspan="4" class="empty-msg loading-pulse">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+  const TABLE_IDS = {
+    catalog:   'tblz0yM7o5Whu3RDr',
+    tickets:   'tblHpltEGbtANxqf0',
+    inventory: 'tblFzjdFkA47rssfV',
+    stores:    'tbls19yXlWQMJB02c',
+    meta:      'tblJ0t0MpNbhQmhSE',
+    disputes:  'tblo0P5me4vn3isbC',
+    returns:   'tbl72AuirnDTmC8m9',
+  };
+
+  const TODAY = new Date().toISOString().slice(0, 10);
+
+  (async () => {
+    await MC.init();
+    renderNav('data');
+    initMobileNav();
+    await loadAll();
+    startAutoRefresh();
+  })();
+
+  async function fetchTable(tableId) {
+    const data = await Bridge.fetch(`/api/airtable/records?table=${tableId}`);
+    return (data && data.records) ? data.records : [];
+  }
+
+  async function loadAll() {
+    document.getElementById('lastUpdated').textContent = 'Refreshing...';
+    await Promise.all([
+      loadCatalog(),
+      loadTickets(),
+      loadInventory(),
+      loadStores(),
+      loadAds(),
+      loadDisputes(),
+    ]);
+    document.getElementById('lastUpdated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  }
+
+  // ── Helpers ──
+  function chip(num, lbl, cls = '') {
+    return `<div class="stat-chip ${cls}"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+  }
+
+  function badge(text, cls) {
+    return `<span class="badge-sm badge-${cls}">${text}</span>`;
+  }
+
+  function daysSince(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return isNaN(d) ? null : Math.floor((Date.now() - d) / 86400000);
+  }
+
+  function statusBadge(s) {
+    if (!s) return badge('—', 'gray');
+    const sl = s.toLowerCase();
+    if (['winner','live','healthy','in stock'].some(k => sl.includes(k))) return badge(s, 'green');
+    if (['low stock','warning','monitoring','in progress','pending'].some(k => sl.includes(k))) return badge(s, 'yellow');
+    if (['critical','out of stock','overdue','paused'].some(k => sl.includes(k))) return badge(s, 'red');
+    if (['needs brief','new','open'].some(k => sl.includes(k))) return badge(s, 'blue');
+    return badge(s, 'gray');
+  }
+
+  // ── Product Catalog ──
+  async function loadCatalog() {
+    const recs = await fetchTable(TABLE_IDS.catalog);
+    const counts = { 'Needs Brief': 0, 'In Progress': 0, 'Ready for Launch': 0, 'Live': 0, 'Paused': 0 };
+    recs.forEach(r => { const s = r.fields['Creative Status']; if (s && s in counts) counts[s]++; else if (!s) counts['Needs Brief']++; });
+    const total = recs.length;
+
+    document.getElementById('catalogBadge').textContent = `${total} products`;
+    document.getElementById('catalogStats').innerHTML =
+      chip(counts['Needs Brief'], 'Needs Brief', 'blue') +
+      chip(counts['In Progress'], 'In Progress', 'warn') +
+      chip(counts['Ready for Launch'], 'Ready', 'accent') +
+      chip(counts['Live'], 'Live', 'accent') +
+      chip(counts['Paused'], 'Paused');
+
+    // Pipeline bar
+    const colors = { 'Needs Brief': '#4a9eff', 'In Progress': '#f5a623', 'Ready for Launch': '#00cc88', 'Live': '#00ff88', 'Paused': '#555' };
+    document.getElementById('pipelineBar').innerHTML = total
+      ? Object.entries(counts).map(([k, v]) => `<div class="pipeline-seg" style="width:${(v/total*100).toFixed(1)}%;background:${colors[k]};"></div>`).join('')
+      : '';
+
+    const tbody = recs.slice(0, 8).map(r => {
+      const f = r.fields;
+      const status = f['Creative Status'] || 'Needs Brief';
+      return `<tr>
+        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f['Product Name'] || '—'}</td>
+        <td>${f['Category'] || '—'}</td>
+        <td style="font-size:10px;">${f['Target Market'] || '—'}</td>
+        <td>${statusBadge(status)}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="empty-msg">No products</td></tr>`;
+    document.querySelector('#catalogTable tbody').innerHTML = tbody;
+  }
+
+  // ── CS Tickets ──
+  async function loadTickets() {
+    const recs = await fetchTable(TABLE_IDS.tickets);
+    const open = recs.filter(r => ['New','Open','Pending'].includes(r.fields['Status']));
+    const urgent = open.filter(r => r.fields['Priority'] === 'Urgent').length;
+    const overdue = open.filter(r => r.fields['Response Due By'] && r.fields['Response Due By'] < TODAY).length;
+    const unassigned = open.filter(r => !r.fields['Assigned To']).length;
+
+    document.getElementById('ticketsBadge').textContent = `${open.length} open`;
+    document.getElementById('ticketsStats').innerHTML =
+      chip(open.length, 'Open', open.length > 0 ? 'warn' : '') +
+      chip(urgent, 'Urgent', urgent > 0 ? 'danger' : '') +
+      chip(overdue, 'Overdue', overdue > 0 ? 'danger' : '') +
+      chip(unassigned, 'Unassigned', unassigned > 0 ? 'warn' : '');
+
+    const sorted = [...open].sort((a,b) => {
+      const po = {Urgent:0,High:1,Normal:2,Low:3};
+      return (po[a.fields['Priority']]??9) - (po[b.fields['Priority']]??9);
+    });
+    const tbody = sorted.slice(0, 6).map(r => {
+      const f = r.fields;
+      const isOverdue = f['Response Due By'] && f['Response Due By'] < TODAY;
+      return `<tr>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f['Subject']||''}">${f['Subject'] || '—'}</td>
+        <td>${statusBadge(f['Priority'])}</td>
+        <td style="font-size:10px;">${f['Category'] || '—'}</td>
+        <td style="font-size:10px;color:${isOverdue?'#e55':'inherit'}">${f['Response Due By'] || '—'}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="empty-msg">No open tickets</td></tr>`;
+    document.querySelector('#ticketsTable tbody').innerHTML = tbody;
+  }
+
+  // ── Inventory ──
+  async function loadInventory() {
+    const recs = await fetchTable(TABLE_IDS.inventory);
+    const inStock  = recs.filter(r => r.fields['Status'] === 'In Stock').length;
+    const lowStock = recs.filter(r => r.fields['Status'] === 'Low Stock').length;
+    const outStock = recs.filter(r => r.fields['Status'] === 'Out of Stock').length;
+
+    document.getElementById('inventoryBadge').textContent = `${recs.length} products`;
+    document.getElementById('inventoryStats').innerHTML =
+      chip(inStock, 'In Stock', 'accent') +
+      chip(lowStock, 'Low Stock', lowStock > 0 ? 'warn' : '') +
+      chip(outStock, 'Out of Stock', outStock > 0 ? 'danger' : '');
+
+    const sorted = [...recs].sort((a,b) => {
+      const o = {'Out of Stock':0,'Low Stock':1,'In Stock':2};
+      return (o[a.fields['Status']]??9) - (o[b.fields['Status']]??9);
+    });
+    const tbody = sorted.slice(0, 7).map(r => {
+      const f = r.fields;
+      return `<tr>
+        <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f['Product Name']||'—'}</td>
+        <td style="font-size:10px;">${f['SKU']||'—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;">${f['Stock Level']??'—'}</td>
+        <td>${statusBadge(f['Status'])}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="empty-msg">No inventory data</td></tr>`;
+    document.querySelector('#inventoryTable tbody').innerHTML = tbody;
+  }
+
+  // ── Store Health ──
+  async function loadStores() {
+    const recs = await fetchTable(TABLE_IDS.stores);
+    const healthy  = recs.filter(r => r.fields['Status'] === 'Healthy').length;
+    const warning  = recs.filter(r => r.fields['Status'] === 'Warning').length;
+    const critical = recs.filter(r => r.fields['Status'] === 'Critical').length;
+
+    document.getElementById('storesBadge').textContent = `${recs.length} stores`;
+    document.getElementById('storesStats').innerHTML =
+      chip(healthy, 'Healthy', 'accent') +
+      chip(warning, 'Warning', warning > 0 ? 'warn' : '') +
+      chip(critical, 'Critical', critical > 0 ? 'danger' : '');
+
+    const sorted = [...recs].sort((a,b) => {
+      const o = {Critical:0,Warning:1,Healthy:2};
+      return (o[a.fields['Status']]??9) - (o[b.fields['Status']]??9);
+    });
+    const tbody = sorted.slice(0, 7).map(r => {
+      const f = r.fields;
+      const conv = f['Conversion Rate (%)'];
+      return `<tr>
+        <td style="font-size:10px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f['Store URL']||'—'}</td>
+        <td>${f['Region']||'—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:${conv<1?'#e55':conv<1.5?'#f5a623':'var(--accent)'}">${conv!=null?conv+'%':'—'}</td>
+        <td>${statusBadge(f['Status'])}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="empty-msg">No store data</td></tr>`;
+    document.querySelector('#storesTable tbody').innerHTML = tbody;
+  }
+
+  // ── Competitor Ads ──
+  async function loadAds() {
+    const recs = await fetchTable(TABLE_IDS.meta);
+    const winners   = recs.filter(r => r.fields['Status'] === 'Winner').length;
+    const active    = recs.filter(r => r.fields['Status'] === 'Active').length;
+    const inactive  = recs.filter(r => r.fields['Status'] === 'Inactive').length;
+
+    document.getElementById('adsBadge').textContent = `${recs.length} ads tracked`;
+    document.getElementById('adsStats').innerHTML =
+      chip(winners, 'Winners', winners > 0 ? 'accent' : '') +
+      chip(active, 'Monitoring', active > 0 ? 'warn' : '') +
+      chip(inactive, 'Inactive');
+
+    const sorted = [...recs].sort((a,b) => (b.fields['EU Reach']||0) - (a.fields['EU Reach']||0));
+    const tbody = sorted.slice(0, 6).map(r => {
+      const f = r.fields;
+      const reach = f['EU Reach'] ? (f['EU Reach']/1000).toFixed(0)+'k' : '—';
+      return `<tr>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f['Competitor Name']||'—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;">${reach}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;">${f['Ad Age (Days)']!=null?f['Ad Age (Days)']+'d':'—'}</td>
+        <td>${statusBadge(f['Status'])}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="empty-msg">No ads tracked yet</td></tr>`;
+    document.querySelector('#adsTable tbody').innerHTML = tbody;
+  }
+
+  // ── Disputes & Returns ──
+  async function loadDisputes() {
+    const [dispRecs, retRecs] = await Promise.all([
+      fetchTable(TABLE_IDS.disputes),
+      fetchTable(TABLE_IDS.returns),
+    ]);
+    const openDisp    = dispRecs.filter(r => ['Open','Under Review'].includes(r.fields['Status']));
+    const overdueDisp = openDisp.filter(r => r.fields['Response Due By'] && r.fields['Response Due By'] <= TODAY);
+    const highValue   = openDisp.filter(r => (r.fields['Amount ($)']||0) > 100);
+    const openRet     = retRecs.filter(r => ['Requested','Approved'].includes(r.fields['Status'])).length;
+
+    document.getElementById('disputesBadge').textContent = `${openDisp.length} open`;
+    document.getElementById('disputesStats').innerHTML =
+      chip(openDisp.length, 'Disputes', openDisp.length > 0 ? 'warn' : '') +
+      chip(overdueDisp.length, 'Overdue', overdueDisp.length > 0 ? 'danger' : '') +
+      chip(highValue.length, '>$100', highValue.length > 0 ? 'danger' : '') +
+      chip(openRet, 'Returns', openRet > 0 ? 'warn' : '');
+
+    const tbody = openDisp.slice(0, 5).map(r => {
+      const f = r.fields;
+      const isOverdue = f['Response Due By'] && f['Response Due By'] <= TODAY;
+      return `<tr>
+        <td style="font-family:var(--font-mono);font-size:10px;">${f['Dispute ID']||'—'}</td>
+        <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f['Customer Name']||'—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;color:${(f['Amount ($)']||0)>100?'#e55':'inherit'}">$${f['Amount ($)']||0}</td>
+        <td>${isOverdue ? badge('OVERDUE','red') : statusBadge(f['Status'])}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="empty-msg">No open disputes</td></tr>`;
+    document.querySelector('#disputesTable tbody').innerHTML = tbody;
+  }
+
+  // ── Auto-refresh ──
+  let refreshTimer = null;
+  function startAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+      if (document.getElementById('autoRefresh').checked) loadAll();
+    }, 60000);
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('autoRefresh').addEventListener('change', () => {
+      if (document.getElementById('autoRefresh').checked) startAutoRefresh();
+      else clearInterval(refreshTimer);
+    });
+  });
+  </script>
+</body>
+</html>

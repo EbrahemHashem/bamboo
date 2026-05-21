@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Memory</h1>
+          <div class="subtitle">Persistent memory across conversations</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadMemory()">Refresh</button>
+      </div>
+      <div class="fade-up fade-up-1">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Memory Index</div>
+          </div>
+          <div class="card" style="max-height:70vh;overflow-y:auto;">
+            <div id="memContent" style="font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--text-sub);white-space:pre-wrap;">
+              <div class="skeleton-item"><div class="skeleton-line" style="width:90%;height:12px;margin-bottom:8px;"></div><div class="skeleton-line" style="width:60%;height:12px;margin-bottom:8px;"></div><div class="skeleton-line" style="width:75%;height:12px;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('memory');
+      initMobileNav();
+      loadMemory();
+    })();
+
+    async function loadMemory() {
+      const data = await Bridge.fetch('/api/files/read?path=memory/MEMORY.md');
+      document.getElementById('memContent').textContent = data?.content || 'Unable to load MEMORY.md — connect bridge to view memory';
+    }
+  </script>
+</body>
+</html>

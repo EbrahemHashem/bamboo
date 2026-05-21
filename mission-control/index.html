@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>187N — Mission Control</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/nav.css">
+  <link rel="stylesheet" href="css/components.css">
+
+  <style>
+    /* ── Splash Screen ── */
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    #splash.hidden {
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.8s ease 0.6s;
+    }
+
+    #splashLogo {
+      width: 320px;
+      max-width: 60vw;
+      opacity: 0;
+      animation: splashFadeIn 1.2s ease 0.3s forwards;
+      filter: drop-shadow(0 0 30px rgba(0,255,136,0.15));
+      transition: filter 0.3s;
+    }
+
+    #splashLogo:hover {
+      filter: drop-shadow(0 0 50px rgba(0,255,136,0.3));
+    }
+
+    #splashHint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(0,255,136,0.3);
+      margin-top: 40px;
+      opacity: 0;
+      animation: splashFadeIn 0.8s ease 1.6s forwards;
+    }
+
+    @keyframes splashFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Particle canvas overlays splash */
+    #particleCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      pointer-events: none;
+      display: none;
+    }
+
+    /* ── Stats Row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Two Column Layout ── */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 24px;
+    }
+
+    /* ── Agent List ── */
+    .agent-list-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .agent-list-item:hover {
+      background: var(--accent-ghost);
+    }
+    .agent-list-item:last-child {
+      border-bottom: none;
+    }
+    .agent-list-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .agent-list-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .agent-list-role {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .agent-list-bar {
+      width: 100px;
+    }
+
+    /* ── Cron Timeline ── */
+    .cron-next {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(0,255,136,0.04);
+    }
+    .cron-time {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      width: 60px;
+      flex-shrink: 0;
+    }
+    .cron-name {
+      font-size: 13px;
+      color: var(--text-sub);
+      flex: 1;
+    }
+
+    @media (max-width: 1200px) {
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .stats-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splash" onclick="disintegrateLogo()">
+    <img id="splashLogo" src="logo.svg" alt="187N">
+    <div id="splashHint">Click to enter</div>
+  </div>
+  <canvas id="particleCanvas"></canvas>
+
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <!-- Sidebar -->
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Page Header -->
+      <div class="page-header fade-up">
+        <div>
+          <h1>
+            <span class="status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse-dot 2s ease infinite;"></span>
+            Dashboard
+          </h1>
+          <div class="subtitle" id="dashSubtitle">Loading system status...</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);" id="dashTime"></div>
+          <div class="last-updated" id="lastUpdated"></div>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-row fade-up fade-up-1" id="statsRow">
+        <div class="stat-card">
+          <div class="stat-label">Agents</div>
+          <div class="stat-value accent" id="statAgents">--</div>
+          <div class="stat-sub">configured</div>
+          <div class="sparkline" id="sparkAgents"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Skills</div>
+          <div class="stat-value" id="statSkills">--</div>
+          <div class="stat-sub">installed</div>
+          <div class="sparkline" id="sparkSkills"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Routines</div>
+          <div class="stat-value" id="statCron">--</div>
+          <div class="stat-sub">scheduled</div>
+          <div class="sparkline" id="sparkCron"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Uptime</div>
+          <div class="stat-value" id="statUptime">--</div>
+          <div class="stat-sub">system</div>
+          <div class="sparkline" id="sparkUptime"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Bridge</div>
+          <div class="stat-value" id="statBridge">--</div>
+          <div class="stat-sub" id="statBridgeSub">checking...</div>
+          <div class="sparkline" id="sparkBridge"></div>
+        </div>
+      </div>
+
+      <!-- Dashboard Grid -->
+      <div class="dashboard-grid fade-up fade-up-2">
+        <!-- Left: Agents + Cron -->
+        <div>
+          <!-- Agents Section -->
+          <div class="section">
+            <div class="section-head">
+              <div class="section-title">Active Agents</div>
+              <a href="./pages/agents.html" class="btn btn-ghost btn-sm">View All</a>
+            </div>
+            <div class="card">
+              <div id="agentList">
+                <div class="empty-state">
+                  <div class="empty-icon">&#9830;</div>
+                  <div class="empty-title">Loading agents...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cron Section -->
+          <div class="section">
+            <div class="section-head">
+              <div class="section-title">Upcoming Routines</div>
+              <a href="./pages/cron.html" class="btn btn-ghost btn-sm">Manage</a>
+            </div>
+            <div class="card">
+              <div id="cronList">
+                <div class="empty-state">
+                  <div class="empty-icon">&#8634;</div>
+                  <div class="empty-title">Loading schedule...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Activity Feed -->
+        <div>
+          <div class="section">
+            <div class="section-head">
+              <div class="section-title">Activity</div>
+              <div class="section-count" id="feedCount">0 events</div>
+            </div>
+            <div class="card" style="max-height:600px;overflow-y:auto;">
+              <div class="feed" id="activityFeed">
+                <div class="empty-state">
+                  <div class="empty-icon">&#9993;</div>
+                  <div class="empty-title">No activity yet</div>
+                  <div class="empty-desc">Events will appear here when agents run</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Splash Disintegration Script -->
+  <script>
+    let splashDone = false;
+
+    // Skip splash if already seen this session
+    if (sessionStorage.getItem('mc_splash_done')) {
+      document.getElementById('splash').style.display = 'none';
+      splashDone = true;
+    }
+
+    function disintegrateLogo() {
+      if (splashDone) return;
+      splashDone = true;
+      sessionStorage.setItem('mc_splash_done', '1');
+
+      const splash = document.getElementById('splash');
+      const logo = document.getElementById('splashLogo');
+      const hint = document.getElementById('splashHint');
+      const canvas = document.getElementById('particleCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Setup canvas
+      canvas.width = window.innerWidth * 2;
+      canvas.height = window.innerHeight * 2;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      canvas.style.display = 'block';
+      ctx.scale(2, 2);
+
+      // Hide hint
+      hint.style.opacity = '0';
+
+      // Sample pixels from the logo image
+      const offscreen = document.createElement('canvas');
+      const offCtx = offscreen.getContext('2d');
+      const logoRect = logo.getBoundingClientRect();
+      const imgW = Math.floor(logoRect.width);
+      const imgH = Math.floor(logoRect.height);
+      offscreen.width = imgW;
+      offscreen.height = imgH;
+      offCtx.drawImage(logo, 0, 0, imgW, imgH);
+
+      let imageData;
+      try {
+        imageData = offCtx.getImageData(0, 0, imgW, imgH);
+      } catch {
+        // CORS / tainted canvas fallback
+        splash.classList.add('hidden');
+        setTimeout(() => { splash.style.display = 'none'; canvas.style.display = 'none'; }, 1500);
+        return;
+      }
+
+      const pixels = imageData.data;
+      const particles = [];
+      const step = 3; // Sample every Nth pixel for performance
+
+      const offsetX = logoRect.left;
+      const offsetY = logoRect.top;
+
+      for (let y = 0; y < imgH; y += step) {
+        for (let x = 0; x < imgW; x += step) {
+          const i = (y * imgW + x) * 4;
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          const a = pixels[i + 3];
+
+          // Skip fully transparent or very dark pixels
+          if (a < 30) continue;
+          const brightness = (r + g + b) / 3;
+          if (brightness < 15) continue;
+
+          // Green-tinted particle color (matrix style)
+          const greenAmount = Math.min(255, g + 60);
+          const matrixR = Math.floor(r * 0.3);
+          const matrixG = Math.min(255, Math.floor(greenAmount * 1.2));
+          const matrixB = Math.floor(b * 0.4);
+
+          particles.push({
+            x: offsetX + x,
+            y: offsetY + y,
+            originX: offsetX + x,
+            originY: offsetY + y,
+            color: `rgba(${matrixR},${matrixG},${matrixB},${a / 255})`,
+            size: Math.random() * 2 + 0.5,
+            // Explosion velocity
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8 - Math.random() * 4, // Slight upward bias
+            // Matrix rain effect — some particles fall down
+            gravity: Math.random() * 0.15 + 0.02,
+            // Fade
+            alpha: 1,
+            decay: Math.random() * 0.012 + 0.006,
+            // Matrix trail chars
+            char: Math.random() > 0.85 ? String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96)) : null,
+            charAlpha: Math.random() * 0.5 + 0.3,
+          });
+        }
+      }
+
+      // Immediately hide the logo (particles take over)
+      logo.style.opacity = '0';
+      logo.style.transition = 'opacity 0.1s';
+
+      // Matrix rain characters falling in background
+      const matrixChars = [];
+      for (let i = 0; i < 80; i++) {
+        matrixChars.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * -window.innerHeight,
+          speed: Math.random() * 6 + 2,
+          char: String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96)),
+          alpha: Math.random() * 0.3 + 0.05,
+          size: Math.random() * 12 + 8,
+        });
+      }
+
+      let frame = 0;
+      const totalFrames = 120; // ~2 seconds at 60fps
+
+      function animate() {
+        frame++;
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+        // Draw matrix rain background
+        matrixChars.forEach(mc => {
+          mc.y += mc.speed;
+          if (mc.y > window.innerHeight) {
+            mc.y = -20;
+            mc.x = Math.random() * window.innerWidth;
+          }
+          ctx.font = `${mc.size}px monospace`;
+          ctx.fillStyle = `rgba(0, 255, 136, ${mc.alpha * (1 - frame / totalFrames)})`;
+          ctx.fillText(mc.char, mc.x, mc.y);
+        });
+
+        // Draw particles
+        let alive = 0;
+        particles.forEach(p => {
+          if (p.alpha <= 0) return;
+          alive++;
+
+          // Physics
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += p.gravity;
+          p.vx *= 0.98; // Air resistance
+          p.alpha -= p.decay;
+
+          if (p.alpha <= 0) return;
+
+          // Draw particle
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+
+          // Draw matrix character trail
+          if (p.char) {
+            ctx.font = '10px monospace';
+            ctx.fillStyle = `rgba(0, 255, 136, ${p.charAlpha * p.alpha})`;
+            ctx.fillText(p.char, p.x + 2, p.y - 4);
+          }
+
+          ctx.globalAlpha = 1;
+        });
+
+        // Fade splash background to transparent
+        if (frame > 10) {
+          splash.style.background = `rgba(0,0,0,${Math.max(0, 1 - (frame - 10) / 60)})`;
+        }
+
+        if (frame < totalFrames && alive > 0) {
+          requestAnimationFrame(animate);
+        } else {
+          // Cleanup
+          splash.style.display = 'none';
+          canvas.style.display = 'none';
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+  </script>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/nav.js"></script>
+  <script>
+    let feedEventCount = 0;
+
+    // ── Init ──
+    (async () => {
+      await MC.init();
+      renderNav('dashboard');
+      initMobileNav();
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      // Load data
+      loadStats();
+      loadAgents();
+      loadCron();
+      connectFeed();
+
+      // Update subtitle
+      document.getElementById('dashSubtitle').textContent =
+        MC.online ? 'All systems operational' : 'Bridge offline — showing cached data';
+
+      // Bridge stat
+      document.getElementById('statBridge').textContent = MC.online ? 'OK' : 'OFF';
+      document.getElementById('statBridge').classList.toggle('accent', MC.online);
+      document.getElementById('statBridgeSub').textContent = MC.online ? 'connected' : 'unreachable';
+
+      updateLastUpdated();
+    })();
+
+    // ── Clock ──
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('dashTime').textContent =
+        `${now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} ${h}:${m}:${s}`;
+    }
+
+    // ── Last Updated ──
+    function updateLastUpdated() {
+      const el = document.getElementById('lastUpdated');
+      const now = new Date();
+      el.textContent = `Last updated ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    }
+
+    // ── Stats ──
+    async function loadStats() {
+      // Sparklines first — independent of bridge data, so render immediately
+      renderSparkline('sparkAgents', [3,4,4,5,5,6,7,7,8,8,9,9,10]);
+      renderSparkline('sparkSkills', [40,45,48,52,55,58,62,68,72,75,80,85,90]);
+      renderSparkline('sparkCron',   [2,2,3,3,4,4,5,5,6,6,7,8,8]);
+      renderSparkline('sparkUptime', [1,2,3,4,5,5,6,6,7,7,8,9,10]);
+      renderSparkline('sparkBridge', [1,1,0,1,1,1,1,1,1,1,1,1,1]);
+
+      // System stats
+      const sys = await Bridge.fetch('/api/system-stats');
+      if (sys) {
+        document.getElementById('statUptime').textContent = sys.uptime || '--';
+      }
+
+      // Skills count
+      const skills = await Bridge.fetch('/api/skills/list');
+      if (skills && skills.skills) {
+        animateCount('statSkills', skills.skills.length);
+      } else {
+        document.getElementById('statSkills').textContent = '0';
+      }
+
+      // Agents from config
+      if (MC.config && MC.config.agents) {
+        animateCount('statAgents', MC.config.agents.length || 0);
+      } else {
+        const agents = await Bridge.fetch('/api/agents');
+        if (agents && agents.agents) {
+          animateCount('statAgents', agents.agents.length);
+        } else {
+          // Fallback demo count
+          animateCount('statAgents', 3);
+        }
+      }
+
+      // Cron count
+      const cron = await Bridge.fetch('/api/cron/list');
+      if (cron && cron.jobs) {
+        animateCount('statCron', cron.jobs.length);
+      } else {
+        document.getElementById('statCron').textContent = '0';
+      }
+
+      updateLastUpdated();
+    }
+
+    function renderSparkline(id, values) {
+      const el = document.getElementById(id);
+      if (!el || !values || !values.length) return;
+      const max = Math.max(...values, 1);
+      el.innerHTML = values.map((v, i) => {
+        const h = Math.max(8, (v / max) * 100);
+        return `<div class="bar" style="height:${h}%; animation-delay:${i * 40}ms;"></div>`;
+      }).join('');
+    }
+
+    function animateCount(id, target) {
+      const el = document.getElementById(id);
+      if (!el || target === 0) {
+        if (el) el.textContent = target;
+        return;
+      }
+      let current = 0;
+      const duration = 600; // ms
+      const steps = 20;
+      const step = target / steps;
+      const interval = duration / steps;
+      const timer = setInterval(() => {
+        current += step;
+        if (current >= target) {
+          current = target;
+          clearInterval(timer);
+        }
+        el.textContent = Math.round(current);
+      }, interval);
+    }
+
+    // ── Agents List ──
+    async function loadAgents() {
+      const container = document.getElementById('agentList');
+      showSkeleton(container, 3);
+
+      const data = await Bridge.fetch('/api/agents');
+
+      if (!data || !data.agents || data.agents.length === 0) {
+        // Show demo agents if no bridge
+        const demo = [
+          { name: 'Content Agent', role: 'Content creation', status: 'active', usage: 65 },
+          { name: 'Ad Manager', role: 'Campaign optimization', status: 'idle', usage: 30 },
+          { name: 'Research Bot', role: 'Market analysis', status: 'idle', usage: 15 },
+        ];
+        renderAgentList(container, demo);
+        return;
+      }
+
+      renderAgentList(container, data.agents);
+    }
+
+    function renderAgentList(container, agents) {
+      container.innerHTML = agents.map(a => `
+        <div class="agent-list-item">
+          <div class="dot ${a.status === 'active' ? 'dot-green dot-pulse' : 'dot-gray'}"></div>
+          <div class="agent-list-info">
+            <div class="agent-list-name">${a.name}</div>
+            <div class="agent-list-role">${a.role || ''}</div>
+          </div>
+          <div class="agent-list-bar">
+            <div class="progress">
+              <div class="progress-fill" style="width:${a.usage || 0}%"></div>
+            </div>
+          </div>
+          <span class="badge ${a.status === 'active' ? 'badge-green' : 'badge-gray'}">${a.status || 'idle'}</span>
+        </div>
+      `).join('');
+    }
+
+    // ── Cron Jobs ──
+    async function loadCron() {
+      const container = document.getElementById('cronList');
+      showSkeleton(container, 3);
+
+      const data = await Bridge.fetch('/api/cron/list');
+
+      if (!data || !data.jobs || data.jobs.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#8634;</div>
+            <div class="empty-title">No cron jobs</div>
+            <div class="empty-desc">Create scheduled tasks to automate your workflow</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = data.jobs.slice(0, 6).map(job => `
+        <div class="cron-next">
+          <div class="cron-time">${job.nextRun || job.schedule || '--'}</div>
+          <div class="cron-name">${job.name || job.command || '--'}</div>
+          <span class="badge ${job.status === 'ok' ? 'badge-green' : 'badge-gray'}">${job.status || 'scheduled'}</span>
+        </div>
+      `).join('');
+    }
+
+    // ── Activity Feed (SSE) ──
+    function connectFeed() {
+      if (!MC.online) {
+        // Show demo feed when offline
+        showDemoFeed();
+        return;
+      }
+
+      Bridge.stream(
+        '/feed-stream',
+        (data) => {
+          addFeedItem(data);
+        },
+        () => {},
+        () => {
+          // On error, show demo feed
+          showDemoFeed();
+        }
+      );
+    }
+
+    function showDemoFeed() {
+      const feed = document.getElementById('activityFeed');
+      const events = [
+        { icon: '&#9889;', text: '<strong>Content Agent</strong> completed carousel generation', time: '2 min ago' },
+        { icon: '&#9650;', text: '<strong>Ad Manager</strong> optimized 3 campaigns', time: '15 min ago' },
+        { icon: '&#8634;', text: '<strong>Cron</strong> morning-brief executed', time: '1h ago' },
+        { icon: '&#9998;', text: '<strong>Research Bot</strong> analyzed 5 competitors', time: '2h ago' },
+        { icon: '&#10003;', text: '<strong>System</strong> health check passed', time: '3h ago' },
+      ];
+      feed.innerHTML = events.map(e => `
+        <div class="feed-item">
+          <div class="feed-icon">${e.icon}</div>
+          <div class="feed-content">
+            <div class="feed-text">${e.text}</div>
+            <div class="feed-time">${e.time}</div>
+          </div>
+        </div>
+      `).join('');
+      feedEventCount = events.length;
+      document.getElementById('feedCount').textContent = `${feedEventCount} events`;
+    }
+
+    function addFeedItem(data) {
+      const feed = document.getElementById('activityFeed');
+
+      // Remove empty state if present
+      const empty = feed.querySelector('.empty-state');
+      if (empty) empty.remove();
+
+      const icon = data.type === 'error' ? '&#9888;' :
+                   data.type === 'tool' ? '&#9881;' :
+                   data.type === 'session' ? '&#9654;' : '&#9889;';
+
+      const item = document.createElement('div');
+      item.className = 'feed-item';
+      item.style.animation = 'fadeUp 0.3s ease';
+      item.innerHTML = `
+        <div class="feed-icon">${icon}</div>
+        <div class="feed-content">
+          <div class="feed-text">${data.text || data.message || JSON.stringify(data).slice(0, 100)}</div>
+          <div class="feed-time">Just now</div>
+        </div>
+      `;
+
+      feed.insertBefore(item, feed.firstChild);
+      feedEventCount++;
+      document.getElementById('feedCount').textContent = `${feedEventCount} events`;
+
+      // Keep max 50 items
+      while (feed.children.length > 50) {
+        feed.removeChild(feed.lastChild);
+      }
+    }
+  </script>
+</body>
+</html>

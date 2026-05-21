@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agents — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .agent-card .agent-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    /* Node Graph Canvas */
+    .graph-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    #agentGraph {
+      width: 100%;
+      height: 300px;
+      display: block;
+    }
+
+    .graph-label {
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Agents</h1>
+          <div class="subtitle" id="agentSubtitle">Loading agents...</div>
+        </div>
+        <button class="btn btn-primary btn-sm btn-shimmer" onclick="location.href='chat.html'">Chat with Agent</button>
+      </div>
+
+      <!-- Node Graph -->
+      <div class="graph-container fade-up fade-up-1">
+        <span class="graph-label">Agent Network</span>
+        <canvas id="agentGraph"></canvas>
+      </div>
+
+      <!-- Agent Cards -->
+      <div class="section fade-up fade-up-2">
+        <div class="section-head">
+          <div class="section-title">All Agents</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <select id="agentSort" onchange="renderAgents()" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-md);padding:6px 10px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;">
+              <option value="status">Sort: status</option>
+              <option value="name">Sort: name</option>
+              <option value="sessions">Sort: sessions</option>
+            </select>
+            <div class="section-count" id="agentCount">0 agents</div>
+          </div>
+        </div>
+        <div class="agent-grid" id="agentGrid">
+          <div class="empty-state" style="grid-column:1/-1;">
+            <div class="empty-icon">&#9830;</div>
+            <div class="empty-title">Loading agents...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Agent Info Modal -->
+  <div class="modal-overlay" id="agentModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Agent</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal()">Close</button>
+        <button class="btn btn-primary btn-sm" id="modalRunBtn">Run Agent</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Run Output Modal -->
+  <div class="modal-overlay" id="runModal">
+    <div class="modal" style="max-width:720px;width:95vw;">
+      <div class="modal-header">
+        <h3 id="runModalTitle">Running...</h3>
+        <button class="modal-close" onclick="closeRunModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div id="runOutput" style="
+          font-family:var(--font-mono);
+          font-size:12px;
+          line-height:1.6;
+          background:var(--bg);
+          color:var(--text-sub);
+          padding:16px;
+          height:420px;
+          overflow-y:auto;
+          white-space:pre-wrap;
+          word-break:break-all;
+        "></div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <span id="runStatus" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">Starting...</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeRunModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let agents = [];
+
+    (async () => {
+      await MC.init();
+      renderNav('agents');
+      initMobileNav();
+      await loadAgents();
+      drawGraph();
+    })();
+
+    async function loadAgents() {
+      const data = await Bridge.fetch('/api/agents');
+
+      if (data && data.agents) {
+        agents = data.agents;
+      } else {
+        // Demo agents when offline
+        agents = [
+          { name: 'Content Creator', role: 'Generates social media content', status: 'active', emoji: '&#9998;', category: 'content', sessions: 42, tokens: '128K' },
+          { name: 'Ad Manager', role: 'Optimizes ad campaigns', status: 'idle', emoji: '&#128200;', category: 'marketing', sessions: 18, tokens: '85K' },
+          { name: 'Research Bot', role: 'Market & competitor analysis', status: 'idle', emoji: '&#128269;', category: 'research', sessions: 12, tokens: '64K' },
+          { name: 'Email Writer', role: 'Drafts email sequences', status: 'active', emoji: '&#9993;', category: 'content', sessions: 31, tokens: '96K' },
+          { name: 'SEO Analyzer', role: 'On-page SEO audits', status: 'idle', emoji: '&#128270;', category: 'marketing', sessions: 8, tokens: '32K' },
+          { name: 'Social Scheduler', role: 'Content calendar management', status: 'idle', emoji: '&#128197;', category: 'content', sessions: 55, tokens: '142K' },
+        ];
+      }
+
+      document.getElementById('agentSubtitle').textContent = `${agents.length} agents configured`;
+      document.getElementById('agentCount').textContent = `${agents.length} agents`;
+      renderAgents();
+    }
+
+    function renderAgents() {
+      const grid = document.getElementById('agentGrid');
+      const key = (document.getElementById('agentSort') || {}).value || 'status';
+      const order = { active: 0, idle: 1, error: 2 };
+      const sorted = [...agents].sort((a, b) => {
+        if (key === 'status') return (order[a.status] ?? 9) - (order[b.status] ?? 9);
+        if (key === 'sessions') return (b.sessions || 0) - (a.sessions || 0);
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+      grid.innerHTML = sorted.map((a, i) => {
+        const cls = a.status === 'active' ? 'status-ok'
+                  : a.status === 'error' ? 'status-fail'
+                  : 'status-idle';
+        return `
+        <div class="agent-card" onclick="openAgent(${agents.indexOf(a)})">
+          <div class="agent-header">
+            <div class="agent-avatar">${a.emoji || '&#9830;'}</div>
+            <div>
+              <div class="agent-name">${a.name}</div>
+              <div class="agent-role">${a.category || ''}</div>
+            </div>
+            <div class="agent-status">
+              <div class="dot ${a.status === 'active' ? 'dot-green dot-pulse' : 'dot-gray'}"></div>
+            </div>
+          </div>
+          <div class="agent-desc">${a.role || ''}</div>
+          <div class="agent-meta">
+            <span>${a.sessions || 0} sessions</span>
+            <span>${a.tokens || '0'} tokens</span>
+          </div>
+          <div class="agent-actions">
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();runAgent('${a.name}')">Run</button>
+            <span class="badge-status ${cls}">${a.status}</span>
+          </div>
+        </div>
+      `;}).join('');
+    }
+
+    function openAgent(index) {
+      const a = agents[index];
+      document.getElementById('modalTitle').textContent = a.name;
+      document.getElementById('modalBody').innerHTML = `
+        <div style="margin-bottom:16px;">
+          <div class="label" style="margin-bottom:6px;">Description</div>
+          <p style="font-size:14px;color:var(--text-sub);line-height:1.5;">${a.role}</p>
+        </div>
+        <div style="margin-bottom:16px;">
+          <div class="label" style="margin-bottom:6px;">Status</div>
+          <span class="badge ${a.status === 'active' ? 'badge-green' : 'badge-gray'}">${a.status}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="card"><div class="stat-label">Sessions</div><div class="stat-value">${a.sessions || 0}</div></div>
+          <div class="card"><div class="stat-label">Tokens</div><div class="stat-value">${a.tokens || '0'}</div></div>
+        </div>
+      `;
+      document.getElementById('modalRunBtn').onclick = () => { closeModal(); runAgent(a.name); };
+      document.getElementById('agentModal').classList.add('visible');
+    }
+
+    function closeModal() {
+      document.getElementById('agentModal').classList.remove('visible');
+    }
+
+    // Map agent name → routine JSON filename
+    const AGENT_ROUTINE_MAP = {
+      'competitor-research-monitor':  '01-competitor-research',
+      'product-catalog-manager':      '02-product-catalog',
+      'creative-briefing-generator':  '03-creative-briefing',
+      'ads-launch-balance-monitor':   '04-ads-launch',
+      'campaign-performance-sync':    '05-campaign-performance',
+      'customer-service-triage':      '06-customer-service',
+      'ois-high-risk-monitor':        '07-ois-orders',
+      'parcelpanel-kpi-report':       '08-parcelpanel-kpi',
+      'disputes-returns-manager':     '09-disputes-returns',
+      'supply-chain-store-health':    '10-supply-chain',
+    };
+
+    let activeStream = null;
+
+    function runAgent(name) {
+      closeModal();
+      const routineId = AGENT_ROUTINE_MAP[name] || name;
+      const outputEl = document.getElementById('runOutput');
+      const statusEl = document.getElementById('runStatus');
+      const titleEl  = document.getElementById('runModalTitle');
+
+      outputEl.textContent = '';
+      statusEl.textContent = 'Starting...';
+      titleEl.textContent  = `▶ ${name.replace(/-/g, ' ')}`;
+      document.getElementById('runModal').classList.add('visible');
+
+      if (activeStream) { activeStream.close(); activeStream = null; }
+
+      const url = `${MC.bridgeUrl}/api/routine/run?name=${encodeURIComponent(routineId)}`;
+      const source = new EventSource(url);
+      activeStream = source;
+
+      source.onmessage = (e) => handleRunEvent(JSON.parse(e.data), outputEl, statusEl);
+      ['output','error','start','done'].forEach(t => {
+        source.addEventListener(t, (e) => handleRunEvent(JSON.parse(e.data), outputEl, statusEl));
+      });
+      source.onerror = () => {
+        statusEl.textContent = '⚠ Connection lost';
+        source.close();
+      };
+    }
+
+    function handleRunEvent(data, outputEl, statusEl) {
+      if (data.type === 'start') {
+        statusEl.textContent = `Running ${data.routine || ''}...`;
+      } else if (data.type === 'output') {
+        outputEl.textContent += data.text;
+        outputEl.scrollTop = outputEl.scrollHeight;
+      } else if (data.type === 'error') {
+        outputEl.textContent += `\x26 ${data.text}`;
+        outputEl.scrollTop = outputEl.scrollHeight;
+        statusEl.style.color = 'var(--danger, #ff4444)';
+      } else if (data.type === 'done') {
+        const ok = data.exitCode === 0;
+        statusEl.textContent = ok ? '✅ Completed successfully' : `⚠ Exited with code ${data.exitCode}`;
+        statusEl.style.color = ok ? 'var(--accent)' : 'var(--danger, #ff4444)';
+        if (activeStream) { activeStream.close(); activeStream = null; }
+      }
+    }
+
+    function closeRunModal() {
+      document.getElementById('runModal').classList.remove('visible');
+      if (activeStream) { activeStream.close(); activeStream = null; }
+    }
+
+    // ── Node Graph ──
+    function drawGraph() {
+      const canvas = document.getElementById('agentGraph');
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * 2;
+      canvas.height = 600;
+      canvas.style.height = '300px';
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const scale = 2;
+
+      // Central node
+      ctx.fillStyle = '#00ff88';
+      ctx.shadowColor = 'rgba(0,255,136,0.4)';
+      ctx.shadowBlur = 20 * scale;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 16 * scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#050a08';
+      ctx.font = `bold ${12 * scale}px 'Orbitron'`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('MC', cx, cy);
+
+      // Agent nodes in circle
+      const radius = Math.min(cx, cy) * 0.65;
+      agents.forEach((a, i) => {
+        const angle = (i / agents.length) * Math.PI * 2 - Math.PI / 2;
+        const x = cx + Math.cos(angle) * radius;
+        const y = cy + Math.sin(angle) * radius;
+
+        // Connection line
+        ctx.strokeStyle = a.status === 'active' ? 'rgba(0,255,136,0.3)' : 'rgba(0,255,136,0.08)';
+        ctx.lineWidth = scale;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        // Node
+        const nodeSize = 10 * scale;
+        ctx.fillStyle = a.status === 'active' ? '#00ff88' : '#0f1f18';
+        ctx.strokeStyle = a.status === 'active' ? '#00ff88' : 'rgba(0,255,136,0.2)';
+        ctx.lineWidth = scale;
+        ctx.shadowColor = a.status === 'active' ? 'rgba(0,255,136,0.4)' : 'transparent';
+        ctx.shadowBlur = a.status === 'active' ? 12 * scale : 0;
+        ctx.beginPath();
+        ctx.arc(x, y, nodeSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+
+        // Label
+        ctx.fillStyle = a.status === 'active' ? '#e8f0ec' : '#8a9b93';
+        ctx.font = `${9 * scale}px 'Rajdhani'`;
+        ctx.textAlign = 'center';
+        ctx.fillText(a.name, x, y + nodeSize + 12 * scale);
+      });
+    }
+
+    window.addEventListener('resize', drawGraph);
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "businessName": "Bamboo Disposables",
+  "accent": "#7cb342",
+  "profile": "ecomm",
+  "clientWorkspacePath": "/home/ebrahemhashem/Desktop/work/onboarding/dev-onboarding-main/clients/bamboo",
+  "modules": {
+    "ops": true,
+    "obsidian": false,
+    "intake": true,
+    "placeholder": false,
+    "dev_tools": false,
+    "finance": false
+  }
+}

@@ -1,0 +1,62 @@
+/* ================================================================
+   187N Mission Control — Design Tokens
+   Source: 187n.ai live site (github.com/trevoronueseke/187N)
+   ================================================================ */
+
+:root {
+  /* --- Backgrounds (matched to live 187n.ai) --- */
+  --bg:              #050a08;
+  --surface:         #0a1410;
+  --surface-light:   #0f1f18;
+  --surface-hover:   #142a20;
+  --surface-raised:  #112018;
+
+  /* --- Accent: Neon Green (exact match) --- */
+  --accent:          #00ff88;
+  --accent-dim:      #00cc6a;
+  --accent-ghost:    rgba(0, 255, 136, 0.05);
+  --accent-glow:     rgba(0, 255, 136, 0.15);
+  --accent-border:   rgba(0, 255, 136, 0.12);
+  --accent-rgb:      0, 255, 136;
+
+  /* --- Text (exact match) --- */
+  --text:            #e8f0ec;
+  --text-sub:        #8a9b93;
+  --text-muted:      #556b62;
+
+  /* --- Borders --- */
+  --border:          rgba(0, 255, 136, 0.08);
+  --border-hover:    rgba(0, 255, 136, 0.2);
+  --border-subtle:   rgba(0, 255, 136, 0.04);
+
+  /* --- Semantic --- */
+  --success:         #00ff88;
+  --warning:         #ffbb33;
+  --error:           #ff4444;
+  --info:            #00aaff;
+
+  /* --- Typography (matched to live site) --- */
+  --font-heading:    'Orbitron', sans-serif;
+  --font-body:       'Rajdhani', sans-serif;
+  --font-mono:       'JetBrains Mono', monospace;
+
+  /* --- Radius --- */
+  --radius-sm:       4px;
+  --radius-md:       8px;
+  --radius-lg:       12px;
+  --radius-xl:       16px;
+
+  /* --- Spacing --- */
+  --sidebar-width:   220px;
+  --header-height:   56px;
+
+  /* --- Shadows / Glow --- */
+  --glow-sm:         0 0 8px rgba(0, 255, 136, 0.15);
+  --glow-md:         0 0 20px rgba(0, 255, 136, 0.2);
+  --glow-lg:         0 0 40px rgba(0, 255, 136, 0.25);
+  --glow-xl:         0 0 60px rgba(0, 255, 136, 0.3);
+
+  /* --- Transitions --- */
+  --ease-out-expo:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+}

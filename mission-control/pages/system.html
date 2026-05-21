@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+
+  <style>
+    .system-donuts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .donut-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .donut-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: var(--glow-sm);
+    }
+
+    .donut-svg {
+      width: 140px;
+      height: 140px;
+      transform: rotate(-90deg);
+    }
+
+    .donut-bg {
+      fill: none;
+      stroke: var(--surface-light);
+      stroke-width: 8;
+    }
+
+    .donut-fill {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: 264;
+      stroke-dashoffset: 264;
+      filter: drop-shadow(0 0 6px rgba(0,255,136,0.4));
+    }
+
+    .donut-text {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      font-weight: 700;
+      fill: var(--text);
+      text-anchor: middle;
+      dominant-baseline: middle;
+      transform: rotate(90deg);
+      transform-origin: center;
+    }
+
+    .donut-unit {
+      font-size: 14px;
+      fill: var(--text-muted);
+    }
+
+    .donut-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-sub);
+      margin-top: 12px;
+    }
+
+    .sys-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .sys-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(0,255,136,0.04);
+      font-size: 13px;
+    }
+
+    .sys-key {
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    .sys-val {
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      transition: color 0.3s;
+    }
+
+    @media (max-width: 900px) {
+      .system-donuts { grid-template-columns: 1fr; }
+      .sys-info-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>System Monitor</h1>
+          <div class="subtitle" id="sysSubtitle">Loading system information...</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="last-updated" id="sysLastUpdated"></div>
+          <button class="btn btn-ghost btn-sm" onclick="loadSystemStats()">Refresh</button>
+        </div>
+      </div>
+
+      <!-- Donut Charts -->
+      <div class="system-donuts fade-up fade-up-1">
+        <div class="donut-card">
+          <svg class="donut-svg" viewBox="0 0 100 100">
+            <circle class="donut-bg" cx="50" cy="50" r="42" />
+            <circle class="donut-fill" id="cpuRing" cx="50" cy="50" r="42" />
+            <text class="donut-text" x="50" y="50" id="cpuText">--</text>
+          </svg>
+          <div class="donut-title">CPU</div>
+        </div>
+
+        <div class="donut-card">
+          <svg class="donut-svg" viewBox="0 0 100 100">
+            <circle class="donut-bg" cx="50" cy="50" r="42" />
+            <circle class="donut-fill" id="memRing" cx="50" cy="50" r="42" />
+            <text class="donut-text" x="50" y="50" id="memText">--</text>
+          </svg>
+          <div class="donut-title">Memory</div>
+        </div>
+
+        <div class="donut-card">
+          <svg class="donut-svg" viewBox="0 0 100 100">
+            <circle class="donut-bg" cx="50" cy="50" r="42" />
+            <circle class="donut-fill" id="diskRing" cx="50" cy="50" r="42" />
+            <text class="donut-text" x="50" y="50" id="diskText">--</text>
+          </svg>
+          <div class="donut-title">Disk</div>
+        </div>
+      </div>
+
+      <!-- System Info -->
+      <div class="sys-info-grid fade-up fade-up-2">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">System</div>
+          </div>
+          <div class="card" id="sysInfo">
+            <div class="sys-row"><span class="sys-key">Hostname</span><span class="sys-val" id="sysHostname">--</span></div>
+            <div class="sys-row"><span class="sys-key">Platform</span><span class="sys-val" id="sysPlatform">--</span></div>
+            <div class="sys-row"><span class="sys-key">OS Version</span><span class="sys-val" id="sysOS">--</span></div>
+            <div class="sys-row"><span class="sys-key">Uptime</span><span class="sys-val" id="sysUptime">--</span></div>
+            <div class="sys-row"><span class="sys-key">Processes</span><span class="sys-val" id="sysProcs">--</span></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Storage</div>
+          </div>
+          <div class="card" id="storageInfo">
+            <div class="sys-row"><span class="sys-key">Disk Used</span><span class="sys-val" id="diskUsed">--</span></div>
+            <div class="sys-row"><span class="sys-key">Disk Free</span><span class="sys-val" id="diskFree">--</span></div>
+            <div class="sys-row"><span class="sys-key">Disk Total</span><span class="sys-val" id="diskTotal">--</span></div>
+            <div class="sys-row"><span class="sys-key">Memory Used</span><span class="sys-val" id="memUsed">--</span></div>
+            <div class="sys-row"><span class="sys-key">Memory Total</span><span class="sys-val" id="memTotal">--</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    let donutAnimations = {};
+    let firstLoad = true;
+
+    (async () => {
+      await MC.init();
+      renderNav('system');
+      initMobileNav();
+      await loadSystemStats();
+
+      // Auto-refresh every 10s
+      setInterval(loadSystemStats, 10000);
+    })();
+
+    /**
+     * Animate donut from current value to target value
+     * Prevents flicker on auto-refresh by smoothly transitioning
+     */
+    function animateDonut(ringId, textId, targetPct) {
+      const ring = document.getElementById(ringId);
+      const text = document.getElementById(textId);
+      if (!ring || !text) return;
+
+      const circumference = 264; // 2 * PI * 42
+      const targetOffset = circumference - (circumference * targetPct / 100);
+
+      // Get current offset
+      const currentStr = ring.style.strokeDashoffset;
+      const currentOffset = currentStr ? parseFloat(currentStr) : circumference;
+      const currentPct = Math.round((1 - currentOffset / circumference) * 100);
+
+      // Cancel any running animation
+      if (donutAnimations[ringId]) {
+        cancelAnimationFrame(donutAnimations[ringId]);
+      }
+
+      const duration = firstLoad ? 1000 : 500;
+      const startTime = performance.now();
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+
+        const offset = currentOffset + (targetOffset - currentOffset) * eased;
+        const pct = Math.round(currentPct + (targetPct - currentPct) * eased);
+
+        ring.style.strokeDashoffset = offset;
+        text.textContent = pct + '%';
+
+        if (progress < 1) {
+          donutAnimations[ringId] = requestAnimationFrame(step);
+        } else {
+          ring.style.strokeDashoffset = targetOffset;
+          text.textContent = Math.round(targetPct) + '%';
+          delete donutAnimations[ringId];
+        }
+      }
+
+      donutAnimations[ringId] = requestAnimationFrame(step);
+    }
+
+    async function loadSystemStats() {
+      const data = await Bridge.fetch('/api/system-stats');
+
+      if (!data) {
+        document.getElementById('sysSubtitle').textContent = 'Unable to fetch system stats';
+        return;
+      }
+
+      document.getElementById('sysSubtitle').textContent =
+        data._cached ? 'Showing cached data' : 'Live system metrics';
+
+      // Update timestamp without flicker
+      const now = new Date();
+      document.getElementById('sysLastUpdated').textContent =
+        `Updated ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+
+      // Animate donuts from current to new value
+      if (data.cpu !== undefined) animateDonut('cpuRing', 'cpuText', data.cpu);
+      if (data.memory !== undefined) animateDonut('memRing', 'memText', data.memory);
+      if (data.disk !== undefined) animateDonut('diskRing', 'diskText', data.disk);
+
+      // System info — update text only if changed (prevents flicker)
+      updateVal('sysHostname', data.hostname);
+      updateVal('sysPlatform', data.platform);
+      updateVal('sysOS', data.osVersion);
+      updateVal('sysUptime', data.uptime);
+      updateVal('sysProcs', data.processes);
+      updateVal('diskUsed', data.diskUsed);
+      updateVal('diskFree', data.diskFree);
+      updateVal('diskTotal', data.diskTotal);
+      updateVal('memUsed', data.memUsed);
+      updateVal('memTotal', data.memTotal);
+
+      firstLoad = false;
+    }
+
+    /** Update text content only if value changed — prevents visual flicker */
+    function updateVal(id, value) {
+      if (!value) return;
+      const el = document.getElementById(id);
+      if (el && el.textContent !== String(value)) {
+        el.textContent = value;
+      }
+    }
+  </script>
+</body>
+</html>

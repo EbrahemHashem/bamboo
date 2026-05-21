@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Routines — 187N Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@300;400;500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/nav.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body>
+  <div class="top-glow"></div>
+  <div class="perspective-grid"></div>
+  <div class="offline-banner">Bridge Offline — Cached Data</div>
+
+  <div class="app">
+    <button class="nav-toggle"><span></span><span></span><span></span></button>
+    <div class="sidebar-overlay"></div>
+    <nav class="sidebar"></nav>
+
+    <main class="main">
+      <div class="page-header fade-up">
+        <div>
+          <h1>Routines</h1>
+          <div class="subtitle">Scheduled routines — cron, n8n workflows, run history</div>
+        </div>
+        <button class="btn btn-primary btn-sm btn-shimmer" onclick="openCreateModal()">+ New</button>
+      </div>
+
+      <div class="section fade-up fade-up-1">
+        <div class="table-wrap">
+          <table id="cronTableEl">
+            <thead>
+              <tr>
+                <th class="sortable" data-key="name">Name<span class="sort-arrow">&#9662;</span></th>
+                <th class="sortable" data-key="schedule">Schedule<span class="sort-arrow">&#9662;</span></th>
+                <th class="sortable" data-key="nextRunTs">Next Run<span class="sort-arrow">&#9662;</span></th>
+                <th class="sortable" data-key="status">Last Status<span class="sort-arrow">&#9662;</span></th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="cronTable">
+              <tr>
+                <td colspan="5" style="text-align:center;padding:40px;">
+                  <div class="empty-icon" style="font-size:24px;opacity:0.2;">&#8634;</div>
+                  <div style="color:var(--text-muted);font-size:13px;margin-top:8px;">Loading cron jobs...</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Empty state with CTA -->
+      <div class="empty-state fade-up fade-up-2" id="cronEmpty" style="display:none;">
+        <div class="empty-icon">&#128197;</div>
+        <div class="empty-title">No cron jobs yet</div>
+        <div class="empty-desc">Create your first scheduled task to get started</div>
+        <button class="btn btn-primary btn-sm" style="margin-top:16px;" onclick="openCreateModal()">+ Create Cron Job</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>New Cron Job</h3>
+        <button class="modal-close" onclick="closeCreateModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:16px;">
+          <label class="label" style="margin-bottom:6px;display:block;">Name</label>
+          <input class="input" id="cronName" placeholder="e.g., Morning Report">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label class="label" style="margin-bottom:6px;display:block;">Command</label>
+          <input class="input" id="cronCmd" placeholder="e.g., /morning-brief">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label class="label" style="margin-bottom:6px;display:block;">Schedule (Cron)</label>
+          <input class="input" id="cronSchedule" placeholder="e.g., 0 8 * * *">
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cronSchedule').value='0 8 * * *'">Daily 8:00</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cronSchedule').value='0 9 * * 1'">Weekly Mon</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cronSchedule').value='0 */6 * * *'">Every 6h</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cronSchedule').value='0 12 * * *'">Daily 12:00</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" onclick="closeCreateModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="createCronJob()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script>
+    (async () => {
+      await MC.init();
+      renderNav('routines');
+      initMobileNav();
+      await loadCronJobs();
+    })();
+
+    let CRON_JOBS = [];
+    let SORT_KEY = 'nextRunTs';
+    let SORT_DIR = 1;
+
+    async function loadCronJobs() {
+      const data = await Bridge.fetch('/api/cron/list');
+      const table = document.getElementById('cronTable');
+      const empty = document.getElementById('cronEmpty');
+
+      if (!data || !data.jobs || data.jobs.length === 0) {
+        table.parentElement.parentElement.style.display = 'none';
+        empty.style.display = '';
+        return;
+      }
+
+      empty.style.display = 'none';
+      table.parentElement.parentElement.style.display = '';
+
+      // Normalize: add nextRunTs (epoch ms) for sorting; keep nextRun as display string
+      CRON_JOBS = data.jobs.map(j => ({
+        ...j,
+        nextRunTs: j.nextRunTs || (j.nextRun ? Date.parse(j.nextRun) : Infinity),
+      }));
+      renderCronRows();
+    }
+
+    function renderCronRows() {
+      const table = document.getElementById('cronTable');
+      const sorted = [...CRON_JOBS].sort((a, b) => {
+        const av = a[SORT_KEY] ?? '';
+        const bv = b[SORT_KEY] ?? '';
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * SORT_DIR;
+        return String(av).localeCompare(String(bv)) * SORT_DIR;
+      });
+      table.innerHTML = sorted.map(job => {
+        const urgency = nextRunUrgency(job.nextRunTs);
+        return `
+        <tr>
+          <td style="font-weight:500;color:var(--text);">${job.name || job.command || '—'}</td>
+          <td><code class="mono">${job.schedule || '—'}</code></td>
+          <td><span class="badge-status ${urgency.class}">${job.nextRun || urgency.label}</span></td>
+          <td><span class="badge-status ${statusClass(job.status)}">${job.status || 'unknown'}</span></td>
+          <td><button class="btn btn-ghost btn-sm" onclick="deleteCron('${job.id}')">Delete</button></td>
+        </tr>`;
+      }).join('');
+      // Update sort arrows
+      document.querySelectorAll('#cronTableEl thead th.sortable').forEach(th => {
+        th.classList.toggle('sorted', th.dataset.key === SORT_KEY);
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = (th.dataset.key === SORT_KEY && SORT_DIR === -1) ? '\u25B2' : '\u25BC';
+      });
+    }
+
+    function statusClass(s) {
+      if (s === 'ok' || s === 'success') return 'status-ok';
+      if (s === 'warn' || s === 'warning') return 'status-warn';
+      if (s === 'error' || s === 'fail' || s === 'failed') return 'status-fail';
+      return 'status-idle';
+    }
+
+    function nextRunUrgency(ts) {
+      if (!ts || ts === Infinity) return { class: 'status-idle', label: '—' };
+      const diff = ts - Date.now();
+      if (diff < 0) return { class: 'status-fail', label: 'overdue' };
+      if (diff < 60 * 60 * 1000) return { class: 'status-warn', label: '<1h' };
+      return { class: 'status-ok', label: 'scheduled' };
+    }
+
+    // Wire up header clicks
+    document.addEventListener('click', (e) => {
+      const th = e.target.closest('#cronTableEl thead th.sortable');
+      if (!th) return;
+      const key = th.dataset.key;
+      SORT_DIR = (SORT_KEY === key) ? -SORT_DIR : 1;
+      SORT_KEY = key;
+      renderCronRows();
+    });
+
+    function openCreateModal() {
+      document.getElementById('createModal').classList.add('visible');
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('visible');
+    }
+
+    async function createCronJob() {
+      const name = document.getElementById('cronName').value;
+      const cmd = document.getElementById('cronCmd').value;
+      const schedule = document.getElementById('cronSchedule').value;
+
+      if (!cmd || !schedule) {
+        showToast('Fill in command and schedule');
+        return;
+      }
+
+      await Bridge.post('/api/cron/create', { name, command: cmd, schedule });
+      closeCreateModal();
+      showToast('Cron job created');
+      await loadCronJobs();
+    }
+
+    async function deleteCron(id) {
+      if (!confirm('Delete this cron job?')) return;
+      await Bridge.post('/api/cron/delete', { id });
+      showToast('Cron job deleted');
+      await loadCronJobs();
+    }
+  </script>
+</body>
+</html>
