@@ -346,7 +346,7 @@
 <body>
   <div class="top-glow"></div>
   <div class="perspective-grid"></div>
-  <div class="offline-banner">Bridge Offline — Chat Unavailable</div>
+  <div class="offline-banner">Bridge Offline — Chatting via Anthropic API</div>
 
   <div class="app">
     <button class="nav-toggle"><span></span><span></span><span></span></button>
@@ -431,11 +431,9 @@
       // Setup keyboard shortcuts
       setupKeyboard();
 
-      // If offline, disable input
+      // If offline, route through Anthropic via /api/chat instead of bridge
       if (!MC.online) {
-        document.getElementById('chatInput').placeholder = 'Bridge offline — chat unavailable';
-        document.getElementById('chatInput').disabled = true;
-        document.getElementById('sendBtn').disabled = true;
+        document.getElementById('chatInput').placeholder = 'Ask Claude (via /api/chat)…';
       }
     })();
 
@@ -466,15 +464,13 @@
     }
 
     // ── Send Message ──
+    // Conversation history — sent to /api/chat so Claude has context across turns
+    const chatHistory = [];
+
     function sendMessage() {
       const input = document.getElementById('chatInput');
       const text = input.value.trim();
       if (!text) return;
-
-      if (!MC.online) {
-        showToast('Bridge is offline — cannot send messages');
-        return;
-      }
 
       input.value = '';
       input.style.height = 'auto';
@@ -482,12 +478,99 @@
       addMessage('user', text);
       hideWelcome();
 
-      // Determine endpoint
-      const endpoint = sessionId
-        ? `/reply-stream?msg=${encodeURIComponent(text)}&session=${sessionId}`
-        : `/run-stream?cmd=${encodeURIComponent(text)}`;
+      if (MC.online) {
+        // Local bridge mode — use Claude Code CLI session
+        const endpoint = sessionId
+          ? `/reply-stream?msg=${encodeURIComponent(text)}&session=${sessionId}`
+          : `/run-stream?cmd=${encodeURIComponent(text)}`;
+        startStream(endpoint);
+      } else {
+        // Vercel mode — call Anthropic API directly via /api/chat
+        chatHistory.push({ role: 'user', content: text });
+        startVercelChatStream();
+      }
+    }
 
-      startStream(endpoint);
+    // ── Vercel /api/chat (POST + streamed SSE-like body) ──
+    async function startVercelChatStream() {
+      const sendBtn = document.getElementById('sendBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const typing = document.getElementById('typingIndicator');
+      const input = document.getElementById('chatInput');
+
+      sendBtn.disabled = true;
+      input.disabled = true;
+      stopBtn.style.display = '';
+      typing.classList.add('visible');
+
+      let buffer = '';
+      const controller = new AbortController();
+      activeStream = { close: () => controller.abort() };
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: chatHistory }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errBody = await res.text();
+          addMessage('tool', '&#9888; ' + errBody.slice(0, 300));
+          finishStream(buffer);
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuf = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          sseBuf += decoder.decode(value, { stream: true });
+
+          let idx;
+          while ((idx = sseBuf.indexOf('\n\n')) !== -1) {
+            const block = sseBuf.slice(0, idx);
+            sseBuf = sseBuf.slice(idx + 2);
+            const parsed = parseSseEvent(block);
+            if (!parsed) continue;
+
+            typing.classList.remove('visible');
+
+            if (parsed.type === 'output' && parsed.text) {
+              buffer += parsed.text;
+              updateStreamMessage(buffer);
+            } else if (parsed.type === 'error') {
+              addMessage('tool', '&#9888; ' + (parsed.text || 'Stream error'));
+            } else if (parsed.type === 'done') {
+              if (buffer) chatHistory.push({ role: 'assistant', content: buffer });
+              finishStream(buffer);
+              return;
+            }
+          }
+        }
+
+        if (buffer) chatHistory.push({ role: 'assistant', content: buffer });
+        finishStream(buffer);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          addMessage('tool', '&#9888; ' + err.message);
+        }
+        finishStream(buffer);
+      }
+    }
+
+    function parseSseEvent(block) {
+      const lines = block.split('\n');
+      let dataStr = '';
+      for (const line of lines) {
+        if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+      }
+      if (!dataStr) return null;
+      try { return JSON.parse(dataStr); } catch { return null; }
     }
 
     function sendSkill(cmd) {
@@ -580,9 +663,11 @@
         activeStream.close();
         activeStream = null;
       }
-      await Bridge.post('/stop', {});
+      if (MC.online) {
+        await Bridge.post('/stop', {});
+      }
       finishStream('');
-      showToast('Agent stopped');
+      showToast('Stopped');
     }
 
     // ── UI Helpers ──

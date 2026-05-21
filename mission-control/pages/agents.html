@@ -160,19 +160,7 @@
     async function loadAgents() {
       const data = await Bridge.fetch('/api/agents');
 
-      if (data && data.agents) {
-        agents = data.agents;
-      } else {
-        // Demo agents when offline
-        agents = [
-          { name: 'Content Creator', role: 'Generates social media content', status: 'active', emoji: '&#9998;', category: 'content', sessions: 42, tokens: '128K' },
-          { name: 'Ad Manager', role: 'Optimizes ad campaigns', status: 'idle', emoji: '&#128200;', category: 'marketing', sessions: 18, tokens: '85K' },
-          { name: 'Research Bot', role: 'Market & competitor analysis', status: 'idle', emoji: '&#128269;', category: 'research', sessions: 12, tokens: '64K' },
-          { name: 'Email Writer', role: 'Drafts email sequences', status: 'active', emoji: '&#9993;', category: 'content', sessions: 31, tokens: '96K' },
-          { name: 'SEO Analyzer', role: 'On-page SEO audits', status: 'idle', emoji: '&#128270;', category: 'marketing', sessions: 8, tokens: '32K' },
-          { name: 'Social Scheduler', role: 'Content calendar management', status: 'idle', emoji: '&#128197;', category: 'content', sessions: 55, tokens: '142K' },
-        ];
-      }
+      agents = (data && data.agents) ? data.agents : [];
 
       document.getElementById('agentSubtitle').textContent = `${agents.length} agents configured`;
       document.getElementById('agentCount').textContent = `${agents.length} agents`;

@@ -3,57 +3,81 @@
     {
       "id": "1-competitor-scraping",
       "name": "Competitor Scraping",
-      "role": "System 1 — Competitor Scraping",
+      "role": "Daily competitor ad + IG scraping",
+      "emoji": "🔍",
+      "category": "research",
       "status": "active",
       "usage": 38,
       "skills": 0,
-      "docs": 2
+      "docs": 2,
+      "sessions": 2,
+      "tokens": "16K"
     },
     {
       "id": "2-content-machine",
       "name": "Content Machine",
-      "role": "System 2 — Content Machine",
+      "role": "Static, carousel & video creative generation",
+      "emoji": "✏️",
+      "category": "content",
       "status": "active",
       "usage": 42,
       "skills": 0,
-      "docs": 3
+      "docs": 3,
+      "sessions": 3,
+      "tokens": "24K"
     },
     {
       "id": "3-ad-management",
       "name": "Ad Management",
-      "role": "System 3 — Ad Management",
+      "role": "Meta ad uploads, ROAS monitoring, auto-scaling",
+      "emoji": "📊",
+      "category": "marketing",
       "status": "active",
       "usage": 42,
       "skills": 0,
-      "docs": 3
+      "docs": 3,
+      "sessions": 3,
+      "tokens": "24K"
     },
     {
       "id": "4-conversion-engine",
       "name": "Conversion Engine",
-      "role": "System 4 — Conversion Engine",
+      "role": "Shopify conversion optimization & A/B tests",
+      "emoji": "🛒",
+      "category": "commerce",
       "status": "active",
       "usage": 95,
       "skills": 7,
-      "docs": 4
+      "docs": 4,
+      "sessions": 11,
+      "tokens": "116K"
     },
     {
       "id": "5-revenue-engine",
       "name": "Revenue Engine",
-      "role": "System 5 — Revenue Engine",
+      "role": "Email/SMS flows, B2B outreach, reorder triggers",
+      "emoji": "💌",
+      "category": "retention",
       "status": "active",
       "usage": 95,
       "skills": 9,
-      "docs": 5
+      "docs": 5,
+      "sessions": 14,
+      "tokens": "148K"
     },
     {
       "id": "6-intelligence-engine",
       "name": "Intelligence Engine",
-      "role": "System 6 — Intelligence Engine",
+      "role": "Cross-engine analytics, forecasting, anomaly detection",
+      "emoji": "🧠",
+      "category": "analytics",
       "status": "active",
       "usage": 82,
       "skills": 5,
-      "docs": 3
+      "docs": 3,
+      "sessions": 8,
+      "tokens": "84K"
     }
   ],
-  "_generatedAt": "2026-05-21T11:07:15.348Z"
+  "_generatedAt": "2026-05-21T11:21:24.858Z"
 }

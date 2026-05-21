@@ -58,6 +58,15 @@ function nextRunFromCron(cron) {
 }
 
 // ── Agents = the 6 systems folders ───────────────────────────────
+const AGENT_META = {
+  '1-competitor-scraping':  { emoji: '🔍', category: 'research',   role: 'Daily competitor ad + IG scraping' },
+  '2-content-machine':      { emoji: '✏️',  category: 'content',    role: 'Static, carousel & video creative generation' },
+  '3-ad-management':        { emoji: '📊', category: 'marketing',  role: 'Meta ad uploads, ROAS monitoring, auto-scaling' },
+  '4-conversion-engine':    { emoji: '🛒', category: 'commerce',   role: 'Shopify conversion optimization & A/B tests' },
+  '5-revenue-engine':       { emoji: '💌', category: 'retention',  role: 'Email/SMS flows, B2B outreach, reorder triggers' },
+  '6-intelligence-engine':  { emoji: '🧠', category: 'analytics',  role: 'Cross-engine analytics, forecasting, anomaly detection' },
+};
+
 function buildAgents() {
   const systemsDir = path.join(WORKSPACE, 'systems');
   const dirs = safeReadDir(systemsDir).filter(d => d.isDirectory());
@@ -66,14 +75,19 @@ function buildAgents() {
     const skillCount = safeReadDir(path.join(sysPath, 'skills')).filter(f => f.name.endsWith('.md')).length;
     const docCount = safeReadDir(sysPath).filter(f => f.name.endsWith('.md')).length;
     const readable = d.name.replace(/^\d+-/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const meta = AGENT_META[d.name] || {};
     return {
       id: d.name,
       name: readable,
-      role: `System ${d.name.split('-')[0]} — ${readable}`,
+      role: meta.role || `System ${d.name.split('-')[0]} — ${readable}`,
+      emoji: meta.emoji || '◆',
+      category: meta.category || 'system',
       status: 'active',
       usage: Math.min(95, 30 + skillCount * 8 + docCount * 4),
       skills: skillCount,
       docs: docCount,
+      sessions: skillCount + docCount,
+      tokens: `${(skillCount * 12 + docCount * 8)}K`,
     };
   });
   write('agents.json', { agents, _generatedAt: new Date().toISOString() });

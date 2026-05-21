@@ -15,7 +15,7 @@
 <body>
   <div class="top-glow"></div>
   <div class="perspective-grid"></div>
-  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="offline-banner">Bridge Offline — Showing Live Airtable Data</div>
   <div class="app">
     <button class="nav-toggle"><span></span><span></span><span></span></button>
     <div class="sidebar-overlay"></div>
@@ -31,30 +31,31 @@
         
 <div class="grid-3" style="margin-bottom:24px;">
   <div class="stat-card">
-    <div class="stat-label">Tokens Today</div>
-    <div class="stat-value accent">0</div>
-    <div class="stat-sub">input + output</div>
+    <div class="stat-label">Routine Runs Today</div>
+    <div class="stat-value accent" id="statCalls">0</div>
+    <div class="stat-sub" id="statCallsSub">last 24h</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">API Calls</div>
-    <div class="stat-value">0</div>
-    <div class="stat-sub">last 24h</div>
+    <div class="stat-label">Records Written</div>
+    <div class="stat-value" id="statRecords">0</div>
+    <div class="stat-sub" id="statRecordsSub">into Airtable today</div>
   </div>
   <div class="stat-card">
-    <div class="stat-label">Sessions</div>
-    <div class="stat-value">0</div>
-    <div class="stat-sub">active today</div>
+    <div class="stat-label">Routines Active</div>
+    <div class="stat-value" id="statSessions">0</div>
+    <div class="stat-sub" id="statSessionsSub">distinct today</div>
   </div>
 </div>
 <div class="section">
   <div class="section-head">
-    <div class="section-title">Usage by Agent</div>
+    <div class="section-title">Usage by Routine <span id="usageWindow" style="opacity:.6;font-size:11px;letter-spacing:1px;"></span></div>
+    <div class="section-count" id="usageCount">— routines</div>
   </div>
-  <div class="card">
+  <div class="card" id="usageTableCard">
     <div class="empty-state">
       <div class="empty-icon">📊</div>
-      <div class="empty-title">Usage tracking coming soon</div>
-      <div class="empty-desc">Token and API usage will be tracked here per agent and per day</div>
+      <div class="empty-title">Loading usage data...</div>
+      <div class="empty-desc">Fetching from Airtable BM_Executions</div>
     </div>
   </div>
 </div>
@@ -68,7 +69,81 @@
       await MC.init();
       renderNav('usage');
       initMobileNav();
+      await loadUsage();
     })();
+
+    async function loadUsage() {
+      let data = null;
+      try {
+        const r = await fetch('/api/usage');
+        if (r.ok) data = await r.json();
+      } catch {}
+
+      const card = document.getElementById('usageTableCard');
+
+      if (!data || data._error) {
+        card.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">⚠</div>
+            <div class="empty-title">Cannot load usage data</div>
+            <div class="empty-desc">${data && data._error ? data._error : 'Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID on Vercel'}</div>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById('statCalls').textContent = data.callsToday || 0;
+      document.getElementById('statCallsSub').textContent =
+        data.errorsToday ? `${data.errorsToday} errors · ${data.avgDurationToday}s avg`
+                         : `${data.avgDurationToday || 0}s avg duration`;
+      document.getElementById('statRecords').textContent = (data.recordsToday || 0).toLocaleString();
+      document.getElementById('statSessions').textContent = data.sessionsToday || 0;
+
+      document.getElementById('usageWindow').textContent = `last ${data.windowDays}d`;
+      document.getElementById('usageCount').textContent = `${data.byAgent.length} routines · ${data.totalRuns} total runs`;
+
+      if (!data.byAgent.length) {
+        card.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">○</div>
+            <div class="empty-title">No routine runs yet</div>
+            <div class="empty-desc">Trigger a routine to populate this view</div>
+          </div>
+        `;
+        return;
+      }
+
+      card.innerHTML = `
+        <table class="data-table" style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-muted);">
+              <th style="padding:10px 12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:10px;">Routine</th>
+              <th style="padding:10px 12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:10px;text-align:right;">Runs</th>
+              <th style="padding:10px 12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:10px;text-align:right;">Success</th>
+              <th style="padding:10px 12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:10px;text-align:right;">Avg Dur</th>
+              <th style="padding:10px 12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:10px;text-align:right;">Records</th>
+              <th style="padding:10px 12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;font-size:10px;">Last Run</th>
+            </tr>
+          </thead>
+          <tbody>
+          ${data.byAgent.map(r => {
+            const successColor = r.successRate >= 95 ? 'var(--accent)' : r.successRate >= 75 ? '#f0b400' : '#ff5555';
+            const last = r.lastRun ? new Date(r.lastRun).toLocaleString() : '—';
+            return `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:10px 12px;color:var(--text);">${r.name}</td>
+                <td style="padding:10px 12px;text-align:right;color:var(--text-sub);">${r.runs}</td>
+                <td style="padding:10px 12px;text-align:right;color:${successColor};">${r.successRate}%</td>
+                <td style="padding:10px 12px;text-align:right;color:var(--text-sub);">${r.avgDuration}s</td>
+                <td style="padding:10px 12px;text-align:right;color:var(--text-sub);">${r.recordsTotal.toLocaleString()}</td>
+                <td style="padding:10px 12px;color:var(--text-muted);">${last}</td>
+              </tr>
+            `;
+          }).join('')}
+          </tbody>
+        </table>
+      `;
+    }
   </script>
 </body>
 </html>
