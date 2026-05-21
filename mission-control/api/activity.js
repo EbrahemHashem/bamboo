@@ -7,8 +7,9 @@
  *   AIRTABLE_BASE_ID     Bamboo Airtable base ID
  *
  * Optional:
- *   AIRTABLE_TABLE       Override table name (default: BM_Executions)
+ *   AIRTABLE_TABLE       Override table name (default: Executions)
  *   ACTIVITY_MAX         Max records to return (default: 20)
+ *   ROUTINE_PREFIX       Filter routines by name prefix (default: bm-)
  */
 
 module.exports = async (req, res) => {
@@ -16,8 +17,9 @@ module.exports = async (req, res) => {
 
   const token = process.env.AIRTABLE_API_KEY;
   const baseId = process.env.AIRTABLE_BASE_ID || process.env.BM_AIRTABLE_BASE_ID;
-  const table = process.env.AIRTABLE_TABLE || process.env.BM_EXECUTIONS_TABLE || 'BM_Executions';
-  const max = parseInt(process.env.ACTIVITY_MAX || process.env.BM_ACTIVITY_MAX || '20', 10);
+  const table = process.env.AIRTABLE_TABLE || 'Executions';
+  const max = parseInt(process.env.ACTIVITY_MAX || '20', 10);
+  const prefix = process.env.ROUTINE_PREFIX || 'bm-';
 
   if (!token || !baseId) {
     return res.status(200).json({
@@ -28,8 +30,11 @@ module.exports = async (req, res) => {
 
   const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
   url.searchParams.set('maxRecords', String(max));
-  url.searchParams.append('sort[0][field]', 'Timestamp');
+  url.searchParams.append('sort[0][field]', 'timestamp');
   url.searchParams.append('sort[0][direction]', 'desc');
+  if (prefix) {
+    url.searchParams.set('filterByFormula', `OR(LEFT({routine_name}, ${prefix.length})='${prefix}', LEFT({routine_name}, ${prefix.length})='${prefix.replace(/-$/, '_')}')`);
+  }
 
   try {
     const r = await fetch(url.toString(), {
@@ -47,29 +52,25 @@ module.exports = async (req, res) => {
     const data = await r.json();
     const events = (data.records || []).map(rec => {
       const f = rec.fields || {};
-      const status = f.Status || 'unknown';
-      const routine = f.Routine || 'routine';
-      const recs = f['Records Written'];
-      const dur = f['Duration (s)'];
-      const summary = f.Summary || f.Error || '';
+      const status = f.status || 'unknown';
+      const routine = f.routine_name || 'routine';
+      const recs = f.records_written;
+      const summary = f.summary || '';
 
       const icon = status === 'error' ? '⚠'
                  : status === 'success' ? '✓'
                  : status === 'empty' ? '○'
                  : '·';
 
-      const meta = [
-        recs !== undefined && `${recs} rec`,
-        dur !== undefined && `${dur}s`,
-      ].filter(Boolean).join(' · ');
+      const meta = recs !== undefined ? `${recs} rec` : '';
 
       return {
         type: status,
         icon,
         text: `<strong>${routine}</strong> ${summary ? summary.slice(0, 120) : ''}`,
         meta,
-        time: relativeTime(f.Timestamp || rec.createdTime),
-        timestamp: f.Timestamp || rec.createdTime,
+        time: relativeTime(f.timestamp || rec.createdTime),
+        timestamp: f.timestamp || rec.createdTime,
         id: rec.id,
       };
     });
