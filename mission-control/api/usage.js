@@ -7,8 +7,9 @@
  *   AIRTABLE_BASE_ID
  *
  * Optional:
- *   AIRTABLE_TABLE       (default: BM_Executions)
+ *   AIRTABLE_TABLE       (default: Executions)
  *   USAGE_WINDOW_DAYS    (default: 30 — how far back to aggregate)
+ *   ROUTINE_PREFIX       Filter by routine name prefix (default: bm-)
  */
 
 module.exports = async (req, res) => {
@@ -16,8 +17,9 @@ module.exports = async (req, res) => {
 
   const token = process.env.AIRTABLE_API_KEY;
   const baseId = process.env.AIRTABLE_BASE_ID || process.env.BM_AIRTABLE_BASE_ID;
-  const table = process.env.AIRTABLE_TABLE || 'BM_Executions';
+  const table = process.env.AIRTABLE_TABLE || 'Executions';
   const windowDays = parseInt(process.env.USAGE_WINDOW_DAYS || '30', 10);
+  const prefix = process.env.ROUTINE_PREFIX || 'bm-';
 
   if (!token || !baseId) {
     return res.status(200).json({
@@ -35,7 +37,10 @@ module.exports = async (req, res) => {
     do {
       const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
       url.searchParams.set('pageSize', '100');
-      url.searchParams.set('filterByFormula', `IS_AFTER({Timestamp}, '${since}')`);
+      const filter = prefix
+        ? `AND(IS_AFTER({timestamp}, '${since}'), LEFT({routine_name}, ${prefix.length})='${prefix}')`
+        : `IS_AFTER({timestamp}, '${since}')`;
+      url.searchParams.set('filterByFormula', filter);
       if (offset) url.searchParams.set('offset', offset);
 
       const r = await fetch(url.toString(), {
@@ -64,35 +69,31 @@ module.exports = async (req, res) => {
 
   let callsToday = 0;
   let errorsToday = 0;
-  let durationToday = 0;
   let recordsTodayTotal = 0;
   const sessionsToday = new Set();
   const byRoutine = {};
 
   for (const rec of records) {
     const f = rec.fields || {};
-    const ts = new Date(f.Timestamp || rec.createdTime).getTime();
-    const routine = f.Routine || 'unknown';
-    const status = f.Status || 'unknown';
-    const dur = Number(f['Duration (s)']) || 0;
-    const recsWritten = Number(f['Records Written']) || 0;
+    const ts = new Date(f.timestamp || rec.createdTime).getTime();
+    const routine = f.routine_name || 'unknown';
+    const status = f.status || 'unknown';
+    const recsWritten = Number(f.records_written) || 0;
 
     if (!byRoutine[routine]) {
-      byRoutine[routine] = { name: routine, runs: 0, errors: 0, durationTotal: 0, recordsTotal: 0, lastRun: null };
+      byRoutine[routine] = { name: routine, runs: 0, errors: 0, recordsTotal: 0, lastRun: null };
     }
     const r = byRoutine[routine];
     r.runs += 1;
     if (status === 'error') r.errors += 1;
-    r.durationTotal += dur;
     r.recordsTotal += recsWritten;
     if (!r.lastRun || ts > new Date(r.lastRun).getTime()) {
-      r.lastRun = f.Timestamp || rec.createdTime;
+      r.lastRun = f.timestamp || rec.createdTime;
     }
 
     if (ts >= todayMs) {
       callsToday += 1;
       if (status === 'error') errorsToday += 1;
-      durationToday += dur;
       recordsTodayTotal += recsWritten;
       sessionsToday.add(routine);
     }
@@ -101,7 +102,7 @@ module.exports = async (req, res) => {
   const byAgent = Object.values(byRoutine)
     .map(r => ({
       ...r,
-      avgDuration: r.runs ? Math.round(r.durationTotal / r.runs) : 0,
+      avgDuration: 0,
       successRate: r.runs ? Math.round(((r.runs - r.errors) / r.runs) * 100) : 0,
     }))
     .sort((a, b) => b.runs - a.runs);
@@ -114,7 +115,7 @@ module.exports = async (req, res) => {
     callsToday,
     errorsToday,
     sessionsToday: sessionsToday.size,
-    avgDurationToday: callsToday ? Math.round(durationToday / callsToday) : 0,
+    avgDurationToday: 0,
     totalRuns: records.length,
     byAgent,
   });
