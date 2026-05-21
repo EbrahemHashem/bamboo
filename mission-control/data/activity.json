@@ -1,0 +1,30 @@
+{
+  "events": [
+    {
+      "type": "snapshot",
+      "text": "<strong>Snapshot</strong> generated from bamboo workspace",
+      "time": "just now"
+    },
+    {
+      "type": "info",
+      "text": "<strong>6</strong> systems detected in systems/",
+      "time": "just now"
+    },
+    {
+      "type": "info",
+      "text": "<strong>11</strong> routines configured",
+      "time": "just now"
+    },
+    {
+      "type": "info",
+      "text": "<strong>21</strong> skills discovered",
+      "time": "just now"
+    },
+    {
+      "type": "info",
+      "text": "<strong>14</strong> MCP servers in mcp-servers/",
+      "time": "just now"
+    }
+  ],
+  "_generatedAt": "2026-05-21T11:07:15.365Z"
+}

@@ -166,7 +166,7 @@
 
   <div class="top-glow"></div>
   <div class="perspective-grid"></div>
-  <div class="offline-banner">Bridge Offline — Cached Data</div>
+  <div class="offline-banner">Bridge Offline — Showing Snapshot Of Bamboo Workspace</div>
 
   <div class="app">
     <!-- Sidebar -->
@@ -490,7 +490,7 @@
 
       // Update subtitle
       document.getElementById('dashSubtitle').textContent =
-        MC.online ? 'All systems operational' : 'Bridge offline — showing cached data';
+        MC.online ? 'All systems operational' : 'Bridge offline — showing latest snapshot';
 
       // Bridge stat
       document.getElementById('statBridge').textContent = MC.online ? 'OK' : 'OFF';
@@ -603,13 +603,13 @@
       const data = await Bridge.fetch('/api/agents');
 
       if (!data || !data.agents || data.agents.length === 0) {
-        // Show demo agents if no bridge
-        const demo = [
-          { name: 'Content Agent', role: 'Content creation', status: 'active', usage: 65 },
-          { name: 'Ad Manager', role: 'Campaign optimization', status: 'idle', usage: 30 },
-          { name: 'Research Bot', role: 'Market analysis', status: 'idle', usage: 15 },
-        ];
-        renderAgentList(container, demo);
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#9881;</div>
+            <div class="empty-title">No agents configured</div>
+            <div class="empty-desc">Add systems to systems/ then re-run snapshot</div>
+          </div>
+        `;
         return;
       }
 
@@ -664,8 +664,7 @@
     // ── Activity Feed (SSE) ──
     function connectFeed() {
       if (!MC.online) {
-        // Show demo feed when offline
-        showDemoFeed();
+        loadSnapshotFeed();
         return;
       }
 
@@ -676,24 +675,30 @@
         },
         () => {},
         () => {
-          // On error, show demo feed
-          showDemoFeed();
+          loadSnapshotFeed();
         }
       );
     }
 
-    function showDemoFeed() {
+    async function loadSnapshotFeed() {
       const feed = document.getElementById('activityFeed');
-      const events = [
-        { icon: '&#9889;', text: '<strong>Content Agent</strong> completed carousel generation', time: '2 min ago' },
-        { icon: '&#9650;', text: '<strong>Ad Manager</strong> optimized 3 campaigns', time: '15 min ago' },
-        { icon: '&#8634;', text: '<strong>Cron</strong> morning-brief executed', time: '1h ago' },
-        { icon: '&#9998;', text: '<strong>Research Bot</strong> analyzed 5 competitors', time: '2h ago' },
-        { icon: '&#10003;', text: '<strong>System</strong> health check passed', time: '3h ago' },
-      ];
+      const data = await Bridge.fetch('/api/activity');
+      const events = (data && data.events) ? data.events : [];
+
+      if (!events.length) {
+        feed.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#9889;</div>
+            <div class="empty-title">No recent activity</div>
+            <div class="empty-desc">Start the bridge server locally for live events</div>
+          </div>
+        `;
+        return;
+      }
+
       feed.innerHTML = events.map(e => `
         <div class="feed-item">
-          <div class="feed-icon">${e.icon}</div>
+          <div class="feed-icon">&#9889;</div>
           <div class="feed-content">
             <div class="feed-text">${e.text}</div>
             <div class="feed-time">${e.time}</div>

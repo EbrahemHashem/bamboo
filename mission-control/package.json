@@ -5,7 +5,8 @@
   "main": "bridge-server.js",
   "scripts": {
     "start": "node bridge-server.js",
-    "dev": "node bridge-server.js"
+    "dev": "node bridge-server.js",
+    "snapshot": "node scripts/build-snapshot.js"
   },
   "author": "187N AI",
   "license": "UNLICENSED",

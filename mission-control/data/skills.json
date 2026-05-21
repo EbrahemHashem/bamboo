@@ -1,0 +1,131 @@
+{
+  "skills": [
+    {
+      "name": "ab-test-manager",
+      "system": "4-conversion-engine",
+      "description": "Interactieve A/B test manager voor Bamboo. Maakt tests aan (baseline + variant), lijst draaiende tests, declareert winnaars, archiveert afgeronde tests. Koppelt Page Variants aan AB Tests in Airtable.",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "bundle-creator",
+      "system": "4-conversion-engine",
+      "description": "Genereert ready-to-upload Shopify bundel specs voor Bamboo — naam, subline, 3 bullets (2-van-3 regel), CTA, prijs, marge, perceived savings, volume projectie. Input kan vrij zijn (\"proefpakket voor nieuwe klanten\") of leeg (dan 3 standaard voorstellen).",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "checkout-optimizer",
+      "system": "4-conversion-engine",
+      "description": "Schrijft Bamboo checkout en post-purchase copy — cart page, shipping transparency, FAQ in cart, post-purchase upsell (48 → 96 reorder), return/guarantee copy. Alles in Bamboo voice, nuchter, geen hype.",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "conversion-analyst",
+      "system": "4-conversion-engine",
+      "description": "Dagelijkse Bamboo conversie rapportage — orders uit Shopify, ad spend uit Airtable Systeem 3, CR/CPA/ROAS per product en kanaal, flags voor \"clicks maar geen conversie\". Nederlandstalig rapport met concrete acties voor Nathan.",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "page-optimizer",
+      "system": "4-conversion-engine",
+      "description": "Genereert page copy varianten in Bamboo voice met 2-van-3 regel, waarde-eerst hiërarchie en USP-volgorde. Baseline + verbeterde variant, reasoning erbij, schrijft naar Airtable Page Variants als Draft.",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "pricing-strategist",
+      "system": "4-conversion-engine",
+      "description": "Genereert pricing frames (waarde per gebruik) en bundelvoorstellen voor Bamboo. Rekent marge op 30% baseline, koppelt upsell routes (24 → 48, 48 → 96, B2B subscription), output is ready-to-upload Shopify bundel specs.",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "store-page-audit",
+      "system": "4-conversion-engine",
+      "description": "Audit van een Bamboo Shopify productpagina of landing page. Checkt USP-volgorde, trust blok, CTA zichtbaarheid, mobile copy, activist-taal detectie, 2-van-3 regel. Output is grade A-F + specifieke fixes.",
+      "category": "4-conversion-engine"
+    },
+    {
+      "name": "b2b-outreach",
+      "system": "5-revenue-engine",
+      "description": "Genereer gepersonaliseerde B2B cold outreach email voor Bamboo — nuchter/zakelijk, niet activistisch, waarde-eerst. Input = lead context (sector, company, size). Output = subject + body, klaar om te versturen via Gmail of copy-paste.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "b2b-prospector",
+      "system": "5-revenue-engine",
+      "description": "Vind B2B target companies voor Bamboo via Apify (Google Maps scraper, LinkedIn, Kamer van Koophandel). Verrijk met Hunter.io of mock email discovery. Output = pre-filled rows in Airtable B2B Leads tabel. Input = sector + regio + size query.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "cs-agent",
+      "system": "5-revenue-engine",
+      "description": "Customer service triage voor Bamboo Shopify tickets + Instagram DMs. Classificeer ticket type (order status, retour, klacht, productvraag, verzending, defect, overig), draft antwoord in Bamboo voice (NL, nuchter, niet activistisch), escalate complexe of boze klanten naar Telegram.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "customer-segmenter",
+      "system": "5-revenue-engine",
+      "description": "Pull alle Shopify klanten voor Bamboo Disposables, bereken segment (First Purchase/Repeat/VIP/At Risk/Churned/B2B), LTV tier, product & volume preference. Writes naar Airtable Customer Segments tabel. Basis voor reorder engine en winback flows.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "email-flow-builder",
+      "system": "5-revenue-engine",
+      "description": "Bouw een Klaviyo email flow met Bamboo brand voice (nuchter, slim, niet activistisch, 2-van-3 kernregels). Input = flow type + doelgroep. Output = volledige email specs per stap, optioneel direct gepusht naar Klaviyo via API, anders markdown output voor handmatige import.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "reorder-engine",
+      "system": "5-revenue-engine",
+      "description": "Bereken per Bamboo klant wanneer hun voorraad opraakt (24r=60d, 48r=120d, 96r=240d), flag klanten met depletion binnen 14 dagen, trigger Klaviyo reorder reminder flow per volume, log signaal in Airtable. Voorkomt dubbele reminders.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "reply-classifier",
+      "system": "5-revenue-engine",
+      "description": "Classificeer inbound reply op B2B outreach — interest level, objection type, timing, urgency, suggested next action. Output = structured classification + aanbevolen vervolgactie in Bamboo voice. Werkt NL + EN input.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "respond-to-leads",
+      "system": "5-revenue-engine",
+      "description": "Volledige B2B lead response pipeline voor Bamboo — lees nieuwe replies in Airtable B2B Leads, classificeer met /reply-classifier logica, genereer persoonlijke Bamboo-voice response drafts, update pipeline stage. Batch of per lead.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "revenue-analyst",
+      "system": "5-revenue-engine",
+      "description": "Analyseer Bamboo Shopify + Klaviyo data — LTV, repeat rate, cohort behavior, AOV trend, email revenue attribution, B2B pipeline value. Output = Dutch markdown rapport met concrete aanbevelingen per segment. Geen fluff.",
+      "category": "5-revenue-engine"
+    },
+    {
+      "name": "cross-engine-optimizer",
+      "system": "6-intelligence-engine",
+      "description": "Cross-engine optimizer — kijkt dwars door Bamboo's engines (competitor / content / ads / conversion / revenue) heen en vindt verbanden die binnen één engine onzichtbaar zijn. Genereert concrete aanbevelingen zoals \"creative X wint op Meta maar Shopify CR voor dat product is laag — optimaliseer PDP\".",
+      "category": "6-intelligence-engine"
+    },
+    {
+      "name": "finance-analyst",
+      "system": "6-intelligence-engine",
+      "description": "Bamboo finance analyst — pulls P&L, unit economics per productlijn, cash position en ad spend vs revenue per channel. Gebaseerd op de generic finance-analyst pattern, maar met Bamboo-specifieke context (3 kernlijnen × 3 volumes, Shopify + Bol + B2B, hero product focus).",
+      "category": "6-intelligence-engine"
+    },
+    {
+      "name": "forecast-engine",
+      "system": "6-intelligence-engine",
+      "description": "Bamboo forecast — projecteert omzet, vraag, voorraaddruk en cash op 30/60/90 dagen gebaseerd op huidige ad spend, conversion rate, repeat rate en voorraadlevels. Output: concrete Nederlandse projectie met aannames en scenario's.",
+      "category": "6-intelligence-engine"
+    },
+    {
+      "name": "intelligence-brief",
+      "system": "6-intelligence-engine",
+      "description": "On-demand Bamboo intelligence brief — aggregeert live data uit alle Airtable tables (Ad Variants, Conversion Tracking, Customer Segments, B2B Leads, Email Performance) en geeft een Nederlandse samenvatting met de belangrijkste KPIs van vandaag + 1 concrete insight + 1 concrete actie.",
+      "category": "6-intelligence-engine"
+    },
+    {
+      "name": "pattern-detector",
+      "system": "6-intelligence-engine",
+      "description": "Scant Bamboo's Airtable tabellen over een opgegeven periode (default 30 dagen) en vindt trends en patronen — dalende ads, stijgende CPA, seizoenspatronen, B2B conversion per sector, email flow degradatie. Output is een Nederlandse markdown rapportage met concrete vindingen.",
+      "category": "6-intelligence-engine"
+    }
+  ],
+  "_generatedAt": "2026-05-21T11:07:15.362Z"
+}

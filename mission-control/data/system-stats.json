@@ -1,0 +1,10 @@
+{
+  "uptime": "snapshot",
+  "snapshotAt": "2026-05-21T11:07:15.365Z",
+  "counts": {
+    "agents": 6,
+    "skills": 21,
+    "cron": 11,
+    "mcp": 14
+  }
+}

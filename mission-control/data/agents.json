@@ -1,0 +1,59 @@
+{
+  "agents": [
+    {
+      "id": "1-competitor-scraping",
+      "name": "Competitor Scraping",
+      "role": "System 1 — Competitor Scraping",
+      "status": "active",
+      "usage": 38,
+      "skills": 0,
+      "docs": 2
+    },
+    {
+      "id": "2-content-machine",
+      "name": "Content Machine",
+      "role": "System 2 — Content Machine",
+      "status": "active",
+      "usage": 42,
+      "skills": 0,
+      "docs": 3
+    },
+    {
+      "id": "3-ad-management",
+      "name": "Ad Management",
+      "role": "System 3 — Ad Management",
+      "status": "active",
+      "usage": 42,
+      "skills": 0,
+      "docs": 3
+    },
+    {
+      "id": "4-conversion-engine",
+      "name": "Conversion Engine",
+      "role": "System 4 — Conversion Engine",
+      "status": "active",
+      "usage": 95,
+      "skills": 7,
+      "docs": 4
+    },
+    {
+      "id": "5-revenue-engine",
+      "name": "Revenue Engine",
+      "role": "System 5 — Revenue Engine",
+      "status": "active",
+      "usage": 95,
+      "skills": 9,
+      "docs": 5
+    },
+    {
+      "id": "6-intelligence-engine",
+      "name": "Intelligence Engine",
+      "role": "System 6 — Intelligence Engine",
+      "status": "active",
+      "usage": 82,
+      "skills": 5,
+      "docs": 3
+    }
+  ],
+  "_generatedAt": "2026-05-21T11:07:15.348Z"
+}

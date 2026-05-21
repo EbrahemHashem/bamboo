@@ -1,0 +1,104 @@
+{
+  "jobs": [
+    {
+      "name": "bm-ab-test-evaluator",
+      "schedule": "0 22 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-21T19:00:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-ad-performance-loop",
+      "schedule": "0 */4 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "0 */4 * * *",
+      "status": "draft",
+      "category": "core",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-anomaly-detector",
+      "schedule": "0 */4 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "0 */4 * * *",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-b2b-pipeline",
+      "schedule": "0 9,15 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T06:00:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-competitor-daily-scrape",
+      "schedule": "0 5 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T02:00:00.000Z",
+      "status": "ok",
+      "category": "core",
+      "mcps": "[apify, airtable]"
+    },
+    {
+      "name": "bm-conversion-monitor",
+      "schedule": "0 */6 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "0 */6 * * *",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-daily-intelligence",
+      "schedule": "30 7 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T04:30:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-reorder-trigger",
+      "schedule": "0 10 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T07:00:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-retention-flow-monitor",
+      "schedule": "0 8 * * *",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T05:00:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-weekly-digest",
+      "schedule": "0 9 * * 1",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T06:00:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    },
+    {
+      "name": "bm-weekly-strategy-report",
+      "schedule": "0 10 * * 1",
+      "timezone": "Europe/Amsterdam",
+      "nextRun": "2026-05-22T07:00:00.000Z",
+      "status": "ok",
+      "category": "",
+      "mcps": "[airtable]"
+    }
+  ],
+  "_generatedAt": "2026-05-21T11:07:15.365Z"
+}

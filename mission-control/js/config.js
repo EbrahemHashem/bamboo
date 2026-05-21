@@ -134,11 +134,24 @@ const MC = {
 
 /**
  * Bridge — fetch wrapper met caching
+ *
+ * Offline fallback order: live bridge → localStorage cache → static snapshot
+ * (/data/*.json bundled at build time by scripts/build-snapshot.js)
  */
+const STATIC_SNAPSHOT_MAP = {
+  '/api/agents': '/data/agents.json',
+  '/api/skills/list': '/data/skills.json',
+  '/api/cron/list': '/data/cron.json',
+  '/api/mcp/installed': '/data/mcp.json',
+  '/api/system-stats': '/data/system-stats.json',
+  '/api/activity': '/data/activity.json',
+};
+
 const Bridge = {
   async fetch(path, opts = {}) {
     const url = MC.bridgeUrl + path;
     const cacheKey = 'mc_' + path.replace(/[^a-z0-9]/gi, '_');
+    const isGet = !opts.method || opts.method.toUpperCase() === 'GET';
 
     try {
       const controller = new AbortController();
@@ -157,7 +170,7 @@ const Bridge = {
 
       return data;
     } catch {
-      // Return cached data if available
+      // 1) Return cached data if available
       try {
         const cached = JSON.parse(localStorage.getItem(cacheKey));
         if (cached && cached.data) {
@@ -166,6 +179,18 @@ const Bridge = {
           return cached.data;
         }
       } catch {}
+
+      // 2) Fall back to static snapshot for known GET endpoints
+      if (isGet && STATIC_SNAPSHOT_MAP[path]) {
+        try {
+          const res = await fetch(STATIC_SNAPSHOT_MAP[path]);
+          if (res.ok) {
+            const data = await res.json();
+            data._snapshot = true;
+            return data;
+          }
+        } catch {}
+      }
 
       return null;
     }

@@ -1,0 +1,61 @@
+{
+  "servers": [
+    {
+      "name": "airwallex",
+      "installed": true
+    },
+    {
+      "name": "checkout-champ",
+      "installed": true
+    },
+    {
+      "name": "cj-fulfillment",
+      "installed": true
+    },
+    {
+      "name": "fireflies",
+      "installed": true
+    },
+    {
+      "name": "google-ads",
+      "installed": true
+    },
+    {
+      "name": "gorgias-replacement",
+      "installed": true
+    },
+    {
+      "name": "heygen",
+      "installed": true
+    },
+    {
+      "name": "klaviyo",
+      "installed": true
+    },
+    {
+      "name": "meta-ads",
+      "installed": true
+    },
+    {
+      "name": "meta-ads-mcp",
+      "installed": true
+    },
+    {
+      "name": "nanobanana",
+      "installed": true
+    },
+    {
+      "name": "revolut",
+      "installed": true
+    },
+    {
+      "name": "shopify",
+      "installed": true
+    },
+    {
+      "name": "trustpilot",
+      "installed": true
+    }
+  ],
+  "_generatedAt": "2026-05-21T11:07:15.365Z"
+}
